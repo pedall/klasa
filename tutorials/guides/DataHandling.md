@@ -37,3 +37,18 @@ some text here
 #### Validations
 
 ### provider connection
+
+
+---
+
+Further reading:
+---
+
+- [Introduction]{@tutorial Introduction}
+- [Klasa Structure]{@tutorial KlasaStructure}
+- [Core Bot Setup]{@tutorial CoreBotSetup}
+- [Events]{@tutorial Events}
+- [Inhibitors]{@tutorial Inhibitors}
+- [Commands]{@tutorial Commands}
+- [Finalizers]{@tutorial Finalizers}
+- [Pro section]{@tutorial ProSection}

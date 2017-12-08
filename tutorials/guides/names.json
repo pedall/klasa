@@ -1,29 +1,31 @@
 {
-	"1_Introduction": {
-		"title": "1 Klasa Full Guide"
-	},
-	"2_KlasaStructure": {
-		"title": "2 Klasa Structure"
-	},
-	"3_CoreBotSetup": {
-		"title": "3 Core Bot Setup"
-	},
-	"4_DataHandling": {
-		"title": "4 Data Handling"
-	},
-	"5_Events": {
-		"title": "5 Events"
-	},
-	"6_Inhibitors": {
-		"title": "6 Inhibitors"
-	},
-	"7_Commands": {
-		"title": "7 Commands"
-	},
-	"8_Finalizers": {
-		"title": "8 Finalizers"
-	},
-	"9_ProSection": {
-		"title": "9 Pro Section"
+	"Introduction": {
+		"title": "Klasa Full Guide",
+		"children": {
+			"KlasaStructure": {
+				"title": "1 Klasa Structure"
+			},
+			"CoreBotSetup": {
+				"title": "2 Core Bot Setup"
+			},
+			"DataHandling": {
+				"title": "3 Data Handling"
+			},
+			"Events": {
+				"title": "4 Events"
+			},
+			"Inhibitors": {
+				"title": "5 Inhibitors"
+			},
+			"Commands": {
+				"title": "6 Commands"
+			},
+			"Finalizers": {
+				"title": "7 Finalizers"
+			},
+			"ProSection": {
+				"title": "8 Pro Section"
+			}	
+		}
 	}
 }

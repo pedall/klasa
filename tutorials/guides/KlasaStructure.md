@@ -36,3 +36,17 @@ Some explanation here.
 ## Public pieces repository
 
 ## Transfer core and public pieces
+
+---
+
+Further reading:
+---
+
+- [Introduction]{@tutorial Introduction}
+- [Core bot setup]{@tutorial CoreBotSetup}
+- [Data handling]{@tutorial DataHandling}
+- [Events]{@tutorial Events}
+- [Inhibitors]{@tutorial Inhibitors}
+- [Commands]{@tutorial Commands}
+- [Finalizers]{@tutorial Finalizers}
+- [Pro section]{@tutorial ProSection}
