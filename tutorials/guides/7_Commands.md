@@ -1,5 +1,3 @@
-# Commands
-
 blabla
 
 - [How commands work](#how-commands-work)

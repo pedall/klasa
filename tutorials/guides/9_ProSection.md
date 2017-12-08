@@ -1,5 +1,3 @@
-# Pro section
-
 blabla
 
 - [Extend inbuilt classes](#extend-inbuilt-classes)

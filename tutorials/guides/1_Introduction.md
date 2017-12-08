@@ -1,5 +1,3 @@
-# Klasa full guide 
-
 Some text here
 
 **Table of content**

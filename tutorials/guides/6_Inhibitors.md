@@ -1,6 +1,5 @@
-# Inhibitors
-
 blabla
+
 - [How inhibitors work](#how-inhibitors-work)
 - [Create blacklist inhibtor](#create-blacklist-inhibtor)
 

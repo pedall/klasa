@@ -1,5 +1,3 @@
-# Data handling
-
 some text here
 
 - [Install database](#install-database)

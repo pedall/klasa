@@ -1,5 +1,3 @@
-# Finalizers
-
 blabla
 
 - [How finalizers work](#how-finalizers-work)
