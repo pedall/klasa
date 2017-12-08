@@ -1,5 +1,3 @@
-# Events
-
 blabla
 
 - [How events work](#how-events-work)

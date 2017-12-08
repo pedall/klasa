@@ -1,5 +1,3 @@
-# Klasa structure
-
 Some explanation here.
 
 - [Lifecycle](#lifecycle)

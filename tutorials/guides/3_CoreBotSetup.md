@@ -1,5 +1,3 @@
-# Core bot setup
-
 blablabla
 
 - [Klasa CLient](#klasa-client)
