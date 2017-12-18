@@ -10,6 +10,33 @@ blablabla
 
 ## Klasa CLient
 
+
+<details open>
+<summary>Terminal</summary>
+
+{terminal/init img}
+
+```bash
+npm init
+```
+
+{terminal/package_json img}
+
+```bash
+npm i dirigeants/klasa hydrabolt/discord.js
+```
+{terminal/package\_json\_after_install img}
+</details>
+
+<details>
+<summary>klasa-vscode</summary>
+
+{klasa-vscode/init img}
+
+You can use the command `Klasa: init a new bot` instead. You will have to manually edit the `package.json` file.
+{klasa-vscode/package\_json\_after_install img}
+</details>
+
 explanation of client and it options (in detail)
 
 ### option 1

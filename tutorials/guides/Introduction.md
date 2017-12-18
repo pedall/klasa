@@ -26,14 +26,14 @@ Some text here
 
 ##### Code Editor
 
-Recommended: VSCode, Atom, Sublime Text, Webstorm
+Recommended: VSCode, Atom, Sublime Text, Webstorm  
 Not recommended: Notepad, Notepad++ 
 
 > Note: klasa-vscode
 
 ##### Node.js
 
-At least Node.js v8.5.0.
+At least Node.js v8.5.0.  
 Installation:
  - [On Windows or Macintosh](https://nodejs.org/en/download/)
  - [On Linux](https://nodejs.org/en/download/package-manager/)
