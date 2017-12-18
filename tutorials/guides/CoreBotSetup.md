@@ -37,6 +37,22 @@ You can use the command `Klasa: init a new bot` instead. You will have to manual
 {klasa-vscode/package\_json\_after_install img}
 </details>
 
+Minimal code:  
+File: `src/klasa.js`
+```js
+const { Client } = require('klasa');
+
+new Client().login('PAST_YOUR_TOKEN_HERE');
+```
+
+This wil generate a bunch of empty folders
+
+{first_launch img}
+
+You should be able to do `@BotName ping`
+
+{first_ping img}
+
 explanation of client and it options (in detail)
 
 ### option 1
