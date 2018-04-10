@@ -1,87 +1,65 @@
 /* eslint-disable id-length */
 
+/**
+ * The Colors class that manages the colors displayed in the console.
+ */
 class Colors {
 
 	/**
-	 * @typedef  {object} ColorsFormatOptions
-	 * @property {(string | string[])} style
-	 * @property {(number | string | number[] | string[])} background
-	 * @property {(number | string | number[] | string[])} text
-	 * @memberof Colors
+	 * @typedef {Object} ColorsFormatOptions
+	 * @property {(string|string[])} style The style or styles to apply
+	 * @property {ColorsFormatType} background The format for the background
+	 * @property {ColorsFormatType} text The format for the text
 	 */
 
-	constructor() {
-		this.CLOSE = {
-			normal: 0,
-			bold: 22,
-			dim: 22,
-			italic: 23,
-			underline: 24,
-			inverse: 27,
-			hidden: 28,
-			strikethrough: 29,
-			text: 39,
-			background: 49
-		};
+	/**
+	 * @typedef {(string|number|string[]|number[])} ColorsFormatType
+	 */
 
-		this.STYLES = {
-			normal: 0,
-			bold: 1,
-			dim: 2,
-			italic: 3,
-			underline: 4,
-			inverse: 7,
-			hidden: 8,
-			strikethrough: 9
-		};
+	/**
+	 * @typedef {Object} ColorsFormatData
+	 * @property {string[]} opening The opening format data styles
+	 * @property {string[]} closing The closing format data styles
+	 * @private
+	 */
 
-		this.TEXTS = {
-			black: 30,
-			red: 31,
-			green: 32,
-			yellow: 33,
-			blue: 34,
-			magenta: 35,
-			cyan: 36,
-			lightgray: 37,
-			lightgrey: 37,
-			gray: 90,
-			grey: 90,
-			lightred: 91,
-			lightgreen: 92,
-			lightyellow: 93,
-			lightblue: 94,
-			lightmagenta: 95,
-			lightcyan: 96,
-			white: 97
-		};
+	/**
+	 * Constructs our Colors instance
+	 * @param {ColorsFormatOptions} [options = {}] The options for this format
+	 * @since 0.4.0
+	 */
+	constructor(options = {}) {
+		const { opening, closing } = this.constructor.text(options.text, this.constructor.background(options.background, this.constructor.style(options.style)));
 
-		this.BACKGROUNDS = {
-			black: 40,
-			red: 41,
-			green: 42,
-			yellow: 43,
-			blue: 44,
-			magenta: 45,
-			cyan: 46,
-			gray: 47,
-			grey: 47,
-			lightgray: 100,
-			lightgrey: 100,
-			lightred: 101,
-			lightgreen: 102,
-			lightyellow: 103,
-			lightblue: 104,
-			lightmagenta: 105,
-			lightcyan: 106,
-			white: 107
-		};
+		/**
+		 * The opening tags
+		 * @type {string}
+		 * @since 0.5.0
+		 */
+		this.opening = this.constructor.useColors ? `\u001B[${opening.join(';')}m` : '';
+
+		/**
+		 * The closing tags
+		 * @type {string}
+		 * @since 0.5.0
+		 */
+		this.closing = this.constructor.useColors ? `\u001B[${closing.join(';')}m` : '';
+	}
+
+	/**
+	 * Format a string
+	 * @since 0.4.0
+	 * @param {string} string The string to format
+	 * @returns {string}
+	 */
+	format(string) {
+		return this.opening + string + this.closing;
 	}
 
 	/**
 	 * Convert hex to RGB
 	 * @since 0.4.0
-	 * @param {string} hex The hexadecimal value to parse.
+	 * @param {string} hex The hexadecimal value to parse
 	 * @returns {number[]}
 	 */
 	static hexToRGB(hex) {
@@ -94,9 +72,9 @@ class Colors {
 	/**
 	 * Convert hue to RGB
 	 * @since 0.4.0
-	 * @param {number} p Value number one.
-	 * @param {number} q Value number two.
-	 * @param {number} t Value number three.
+	 * @param {number} p Value number one
+	 * @param {number} q Value number two
+	 * @param {number} t Value number three
 	 * @returns {number}
 	 */
 	static hueToRGB(p, q, t) {
@@ -111,7 +89,7 @@ class Colors {
 	/**
 	 * Format HSL to RGB
 	 * @since 0.4.0
-	 * @param {(number[]|string[])} formatArray The array to format.
+	 * @param {(number[]|string[])} formatArray The array to format
 	 * @returns {number[]}
 	 */
 	static hslToRGB([h, s, l]) {
@@ -128,7 +106,7 @@ class Colors {
 	/**
 	 * Format an array into a string
 	 * @since 0.4.0
-	 * @param {(number[]|string[])} formatArray The array to format.
+	 * @param {(number[]|string[])} formatArray The array to format
 	 * @returns {string}
 	 */
 	static formatArray([pos1, pos2, pos3]) {
@@ -145,31 +123,39 @@ class Colors {
 		return `38;2;${pos1};${pos2};${pos3}`;
 	}
 
-
 	/**
-	 * Format a string
-	 * @since 0.4.0
-	 * @param {string} string The string to format.
-	 * @param {ColorsFormatOptions} formatOptions The format options.
-	 * @returns {string}
+	 * Apply the style
+	 * @since 0.5.0
+	 * @param {(string|string[])} styles The style or styles to apply
+	 * @param {ColorsFormatData} [data={}] The data
+	 * @returns {ColorsFormatData}
+	 * @private
 	 */
-	format(string, { style, background, text } = {}) {
-		const opening = [];
-		const closing = [];
-		if (style) {
-			if (Array.isArray(style)) {
-				for (let i = 0; i < style.length; i++) {
-					opening.push(`${this.STYLES[style[i].toLowerCase()]}`);
-					closing.push(`${this.CLOSE[style[i].toLowerCase()]}`);
-				}
-			} else if (typeof style === 'string' && style.toLowerCase() in this.STYLES) {
-				opening.push(`${this.STYLES[style.toLowerCase()]}`);
-				closing.push(`${this.CLOSE[style.toLowerCase()]}`);
+	static style(styles, { opening = [], closing = [] } = {}) {
+		if (styles) {
+			if (!Array.isArray(styles)) styles = [styles];
+			for (let style in styles) {
+				style = style.toLowerCase();
+				if (!(style in Colors.STYLES)) continue;
+				opening.push(Colors.STYLES[style]);
+				closing.push(Colors.CLOSE[style]);
 			}
 		}
+		return { opening, closing };
+	}
+
+	/**
+	 * Apply the background
+	 * @since 0.5.0
+	 * @param {ColorsFormatType} background The background to apply
+	 * @param {ColorsFormatData} [data={}] The data
+	 * @returns {ColorsFormatData}
+	 * @private
+	 */
+	static background(background, { opening = [], closing = [] } = {}) {
 		if (background) {
 			if (typeof background === 'number') {
-				if (Number.isInteger(background) === false) background = Math.round(background);
+				if (!Number.isInteger(background)) background = Math.round(background);
 
 				const number = (background >= 0x100 && background <= 0xFFF) || (background >= 0x100000 && background <= 0xFFFFFF) ?
 					background.toString(16) :
@@ -177,34 +163,144 @@ class Colors {
 
 				if (number !== null) {
 					opening.push(`48;5;${background}`);
-					closing.push(`${this.CLOSE.background}`);
+					closing.push(Colors.CLOSE.background);
 				}
 			} else if (Array.isArray(background)) {
 				opening.push(Colors.formatArray([background[0], background[1], background[2]]));
-				closing.push(`\u001B[${this.CLOSE.background}`);
-			} else if (typeof background === 'string' && background.toLowerCase() in this.BACKGROUNDS) {
-				opening.push(`${this.BACKGROUNDS[background.toLowerCase()]}`);
-				closing.push(`${this.CLOSE.background}`);
+				closing.push(`\u001B[${Colors.CLOSE.background}`);
+			} else if (typeof background === 'string' && background.toLowerCase() in Colors.BACKGROUNDS) {
+				opening.push(Colors.BACKGROUNDS[background.toLowerCase()]);
+				closing.push(Colors.CLOSE.background);
 			}
 		}
+		return { opening, closing };
+	}
+
+	/**
+	 * Apply the text format
+	 * @since 0.5.0
+	 * @param {ColorsFormatType} text The text format to apply
+	 * @param {ColorsFormatData} [data={}] The data
+	 * @returns {ColorsFormatData}
+	 * @private
+	 */
+	static text(text, { opening = [], closing = [] } = {}) {
 		if (text) {
 			if (typeof text === 'number') {
-				if (Number.isInteger(text) === false) text = Math.round(text);
+				if (!Number.isInteger(text)) text = Math.round(text);
 				opening.push(`38;5;${text}`);
-				closing.push(`${this.CLOSE.text}`);
+				closing.push(Colors.CLOSE.text);
 			} else if (Array.isArray(text)) {
 				opening.push(Colors.formatArray([text[0], text[1], text[2]]));
-				closing.push(`${this.CLOSE.text}`);
-			} else if (typeof text === 'string' && text.toLowerCase() in this.TEXTS) {
-				opening.push(`${this.TEXTS[text.toLowerCase()]}`);
-				closing.push(`${this.CLOSE.text}`);
+				closing.push(Colors.CLOSE.text);
+			} else if (typeof text === 'string' && text.toLowerCase() in Colors.TEXTS) {
+				opening.push(Colors.TEXTS[text.toLowerCase()]);
+				closing.push(Colors.CLOSE.text);
 			}
 		}
-		return `\u001B[${opening.join(';')}m${string}\u001B[${closing.join(';')}m`;
+		return { opening, closing };
 	}
 
 }
 
+/**
+ * Determines if this class should be constructed with colors or not
+ * @type {?boolean}
+ * @static
+ * @private
+ */
+Colors.useColors = null;
+
+/**
+ * The close codes
+ * @type {object}
+ * @static
+ * @private
+ */
+Colors.CLOSE = {
+	normal: 0,
+	bold: 22,
+	dim: 22,
+	italic: 23,
+	underline: 24,
+	inverse: 27,
+	hidden: 28,
+	strikethrough: 29,
+	text: 39,
+	background: 49
+};
+
+/**
+ * The style codes
+ * @type {object}
+ * @static
+ * @private
+ */
+Colors.STYLES = {
+	normal: 0,
+	bold: 1,
+	dim: 2,
+	italic: 3,
+	underline: 4,
+	inverse: 7,
+	hidden: 8,
+	strikethrough: 9
+};
+
+/**
+ * The text codes
+ * @type {object}
+ * @static
+ * @private
+ */
+Colors.TEXTS = {
+	black: 30,
+	red: 31,
+	green: 32,
+	yellow: 33,
+	blue: 34,
+	magenta: 35,
+	cyan: 36,
+	lightgray: 37,
+	lightgrey: 37,
+	gray: 90,
+	grey: 90,
+	lightred: 91,
+	lightgreen: 92,
+	lightyellow: 93,
+	lightblue: 94,
+	lightmagenta: 95,
+	lightcyan: 96,
+	white: 97
+};
+
+/**
+ * The background codes
+ * @type {object}
+ * @static
+ * @private
+ */
+Colors.BACKGROUNDS = {
+	black: 40,
+	red: 41,
+	green: 42,
+	yellow: 43,
+	blue: 44,
+	magenta: 45,
+	cyan: 46,
+	gray: 47,
+	grey: 47,
+	lightgray: 100,
+	lightgrey: 100,
+	lightred: 101,
+	lightgreen: 102,
+	lightyellow: 103,
+	lightblue: 104,
+	lightmagenta: 105,
+	lightcyan: 106,
+	white: 107
+};
+
 /* eslint-enable id-length */
 
-module.exports = new Colors();
+module.exports = Colors;

@@ -7,7 +7,12 @@ module.exports = class extends Command {
 			aliases: ['commands'],
 			guarded: true,
 			description: (msg) => msg.language.get('COMMAND_HELP_DESCRIPTION'),
-			usage: '[Command:cmd]'
+			usage: '(Command:cmd)'
+		});
+
+		this.createCustomResolver('cmd', (arg, possible, msg) => {
+			if (!arg || arg === '') return undefined;
+			return this.client.argResolver.cmd(arg, possible, msg);
 		});
 	}
 
@@ -27,10 +32,10 @@ module.exports = class extends Command {
 		const categories = Object.keys(help);
 		const helpMessage = [];
 		for (let cat = 0; cat < categories.length; cat++) {
-			helpMessage.push(`**${categories[cat]} Commands**: \`\`\`asciidoc`, '');
+			helpMessage.push(`**${categories[cat]} Commands**:`, '```asciidoc');
 			const subCategories = Object.keys(help[categories[cat]]);
 			for (let subCat = 0; subCat < subCategories.length; subCat++) helpMessage.push(`= ${subCategories[subCat]} =`, `${help[categories[cat]][subCategories[subCat]].join('\n')}\n`);
-			helpMessage.push('```\n\u200b');
+			helpMessage.push('```', '\u200b');
 		}
 
 		return msg[method].send(helpMessage, { split: { char: '\u200b' } })
@@ -41,7 +46,7 @@ module.exports = class extends Command {
 	async buildHelp(msg) {
 		const help = {};
 
-		const commandNames = Array.from(this.client.commands.keys());
+		const commandNames = [...this.client.commands.keys()];
 		const longest = commandNames.reduce((long, str) => Math.max(long, str.length), 0);
 
 		await Promise.all(this.client.commands.map((command) =>

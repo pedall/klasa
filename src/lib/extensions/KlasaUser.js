@@ -14,11 +14,20 @@ module.exports = Structures.extend('User', User => {
 			super(...args);
 
 			/**
-			 * The guild level configs for this context (guild || default)
+			 * The user level configs for this context (user || default)
 			 * @since 0.5.0
 			 * @type {Configuration}
 			 */
-			this.configs = this.client.gateways.users.cache.get('users', this.id) || this.client.gateways.users.insertEntry(this.id);
+			this.configs = this.client.gateways.users.cache.get(this.id) || this.client.gateways.users.insertEntry(this.id);
+		}
+
+		/**
+		 * Returns the JSON-compatible object of this instance.
+		 * @since 0.5.0
+		 * @returns {Object}
+		 */
+		toJSON() {
+			return { ...super.toJSON(), configs: this.configs };
 		}
 
 	}

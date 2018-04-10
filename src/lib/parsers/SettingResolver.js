@@ -16,8 +16,8 @@ class SettingResolver extends Resolver {
 	 */
 	async user(data, guild, name) {
 		const result = await super.user(data);
-		if (!result) throw (guild ? guild.language : this.language).get('RESOLVER_INVALID_USER', name);
-		return result;
+		if (result) return result;
+		throw (guild ? guild.language : this.client.languages.default).get('RESOLVER_INVALID_USER', name);
 	}
 
 	/**
@@ -30,8 +30,8 @@ class SettingResolver extends Resolver {
 	 */
 	async channel(data, guild, name) {
 		const result = await super.channel(data);
-		if (!result) throw (guild ? guild.language : this.language).get('RESOLVER_INVALID_CHANNEL', name);
-		return result;
+		if (result) return result;
+		throw (guild ? guild.language : this.client.languages.default).get('RESOLVER_INVALID_CHANNEL', name);
 	}
 
 	/**
@@ -40,12 +40,12 @@ class SettingResolver extends Resolver {
 	 * @param {*} data The data to resolve
 	 * @param {KlasaGuild} guild The guild to resolve for
 	 * @param {string} name The name of the key being resolved
-	 * @returns {external:Channel}
+	 * @returns {external:TextChannel}
 	 */
 	async textchannel(data, guild, name) {
 		const result = await super.channel(data);
-		if (!result || result.type !== 'text') throw (guild ? guild.language : this.language).get('RESOLVER_INVALID_CHANNEL', name);
-		return result;
+		if (result && result.type === 'text') return result;
+		throw (guild ? guild.language : this.client.languages.default).get('RESOLVER_INVALID_CHANNEL', name);
 	}
 
 	/**
@@ -54,12 +54,26 @@ class SettingResolver extends Resolver {
 	 * @param {*} data The data to resolve
 	 * @param {KlasaGuild} guild The guild to resolve for
 	 * @param {string} name The name of the key being resolved
-	 * @returns {external:Channel}
+	 * @returns {external:VoiceChannel}
 	 */
 	async voicechannel(data, guild, name) {
 		const result = await super.channel(data);
-		if (!result || result.type !== 'voice') throw (guild ? guild.language : this.language).get('RESOLVER_INVALID_CHANNEL', name);
-		return result;
+		if (result && result.type === 'voice') return result;
+		throw (guild ? guild.language : this.client.languages.default).get('RESOLVER_INVALID_CHANNEL', name);
+	}
+
+	/**
+	 * Resolves a VoiceChannel
+	 * @since 0.3.0
+	 * @param {*} data The data to resolve
+	 * @param {KlasaGuild} guild The guild to resolve for
+	 * @param {string} name The name of the key being resolved
+	 * @returns {external:CategoryChannel}
+	 */
+	async categorychannel(data, guild, name) {
+		const result = await super.channel(data);
+		if (result && result.type === 'category') return result;
+		throw (guild ? guild.language : this.client.languages.default).get('RESOLVER_INVALID_CHANNEL', name);
 	}
 
 	/**
@@ -72,8 +86,8 @@ class SettingResolver extends Resolver {
 	 */
 	async guild(data, guild, name) {
 		const result = await super.guild(data);
-		if (!result) throw (guild ? guild.language : this.language).get('RESOLVER_INVALID_GUILD', name);
-		return result;
+		if (result) return result;
+		throw (guild ? guild.language : this.client.languages.default).get('RESOLVER_INVALID_GUILD', name);
 	}
 
 	/**
@@ -85,9 +99,9 @@ class SettingResolver extends Resolver {
 	 * @returns {external:Role}
 	 */
 	async role(data, guild, name) {
-		const result = await super.role(data, guild) || guild.roles.find('name', data);
-		if (!result) throw (guild ? guild.language : this.language).get('RESOLVER_INVALID_ROLE', name);
-		return result;
+		const result = await super.role(data, guild) || (guild ? guild.roles.find('name', data) : null);
+		if (result) return result;
+		throw (guild ? guild.language : this.client.languages.default).get('RESOLVER_INVALID_ROLE', name);
 	}
 
 	/**
@@ -100,8 +114,8 @@ class SettingResolver extends Resolver {
 	 */
 	async boolean(data, guild, name) {
 		const result = await super.boolean(data);
-		if (!result) throw (guild ? guild.language : this.language).get('RESOLVER_INVALID_BOOL', name);
-		return result;
+		if (typeof result === 'boolean') return result;
+		throw (guild ? guild.language : this.client.languages.default).get('RESOLVER_INVALID_BOOL', name);
 	}
 
 	/**
@@ -111,13 +125,13 @@ class SettingResolver extends Resolver {
 	 * @param {KlasaGuild} guild The guild to resolve for
 	 * @param {string} name The name of the key being resolved
 	 * @param {Object} minMax The minimum and maximum
-	 * @param {?number} minMax.min The minumum value
+	 * @param {?number} minMax.min The minimum value
 	 * @param {?number} minMax.max The maximum value
 	 * @returns {string}
 	 */
 	async string(data, guild, name, { min, max } = {}) {
 		const result = await super.string(data);
-		if (SettingResolver.maxOrMin(guild, result.length, min, max, name, (guild ? guild.language : this.language).get('RESOLVER_STRING_SUFFIX'))) return result;
+		if (SettingResolver.maxOrMin(this.client, guild, result.length, min, max, name, 'RESOLVER_STRING_SUFFIX')) return result;
 		return null;
 	}
 
@@ -127,15 +141,15 @@ class SettingResolver extends Resolver {
 	 * @param {*} data The data to resolve
 	 * @param {KlasaGuild} guild The guild to resolve for
 	 * @param {string} name The name of the key being resolved
-	 * @param {Object} minMax The minimum and maximum
-	 * @param {?number} minMax.min The minumum value
+	 * @param {Object} [minMax={}] The minimum and maximum
+	 * @param {?number} minMax.min The minimum value
 	 * @param {?number} minMax.max The maximum value
 	 * @returns {number}
 	 */
 	async integer(data, guild, name, { min, max } = {}) {
 		const result = await super.integer(data);
-		if (!result) throw (guild ? guild.language : this.language).get('SETTING_RESOLVER_INVALID_INTEGER');
-		if (SettingResolver.maxOrMin(guild, result, min, max, name)) return result;
+		if (result === null) throw (guild ? guild.language : this.client.languages.default).get('RESOLVER_INVALID_INT', name);
+		if (SettingResolver.maxOrMin(this.client, guild, result, min, max, name)) return result;
 		return null;
 	}
 
@@ -145,15 +159,15 @@ class SettingResolver extends Resolver {
 	 * @param {*} data The data to resolve
 	 * @param {KlasaGuild} guild The guild to resolve for
 	 * @param {string} name The name of the key being resolved
-	 * @param {Object} minMax The minimum and maximum
-	 * @param {?number} minMax.min The minumum value
+	 * @param {Object} [minMax={}] The minimum and maximum
+	 * @param {?number} minMax.min The minimum value
 	 * @param {?number} minMax.max The maximum value
 	 * @returns {number}
 	 */
 	async float(data, guild, name, { min, max } = {}) {
 		const result = await super.float(data);
-		if (!result) throw (guild ? guild.language : this.language).get('RESOLVER_INVALID_FLOAT', name);
-		if (SettingResolver.maxOrMin(guild, result, min, max, name)) return result;
+		if (result === null) throw (guild ? guild.language : this.client.languages.default).get('RESOLVER_INVALID_FLOAT', name);
+		if (SettingResolver.maxOrMin(this.client, guild, result, min, max, name)) return result;
 		return null;
 	}
 
@@ -167,8 +181,8 @@ class SettingResolver extends Resolver {
 	 */
 	async url(data, guild, name) {
 		const result = await super.url(data);
-		if (!result) throw (guild ? guild.language : this.language).get('RESOLVER_INVALID_URL', name);
-		return result;
+		if (result) return result;
+		throw (guild ? guild.language : this.client.languages.default).get('RESOLVER_INVALID_URL', name);
 	}
 
 	/**
@@ -177,12 +191,12 @@ class SettingResolver extends Resolver {
 	 * @param {*} data The data to resolve
 	 * @param {KlasaGuild} guild The guild to resolve for
 	 * @param {string} name The name of the key being resolved
-	 * @returns {Command}
+	 * @returns {string}
 	 */
 	async command(data, guild, name) {
 		const command = this.client.commands.get(data.toLowerCase());
-		if (!command) throw (guild ? guild.language : this.language).get('RESOLVER_INVALID_PIECE', name, 'command');
-		return command.name;
+		if (command) return command.name;
+		throw (guild ? guild.language : this.client.languages.default).get('RESOLVER_INVALID_PIECE', name, 'command');
 	}
 
 	/**
@@ -191,47 +205,49 @@ class SettingResolver extends Resolver {
 	 * @param {*} data The data to resolve
 	 * @param {KlasaGuild} guild The guild to resolve for
 	 * @param {string} name The name of the key being resolved
-	 * @returns {Language}
+	 * @returns {string}
 	 */
 	async language(data, guild, name) {
 		const language = this.client.languages.get(data);
-		if (!language) throw (guild ? guild.language : this.language).get('RESOLVER_INVALID_PIECE', name, 'language');
-		return language.name;
+		if (language) return language.name;
+		throw (guild ? guild.language : this.client.languages.default).get('RESOLVER_INVALID_PIECE', name, 'language');
 	}
 
 	/**
 	 * Resolves anything, even objects.
 	 * @since 0.5.0
-	 * @param {*} data Raw content to pass.
-	 * @returns {Promise<*>}
+	 * @param {*} data Raw content to pass
+	 * @returns {*}
 	 */
-	any(data) {
-		return Promise.resolve(data);
+	async any(data) {
+		return data;
 	}
 
 	/**
 	 * Check if the input is valid with min and/or max values.
 	 * @since 0.0.1
-	 * @static
+	 * @param {KlasaClient} client The client of this bot
 	 * @param {KlasaGuild} guild The guild to resolve for
-	 * @param {number} value The value to check.
-	 * @param {?number} min Min value.
-	 * @param {?number} max Max value.
+	 * @param {number} value The value to check
+	 * @param {number} [min=null] Min value
+	 * @param {number} [max=null] Max value
 	 * @param {string} name The name of the key being resolved
 	 * @param {string} [suffix=''] The suffix to apply to the error messages
 	 * @returns {boolean}
+	 * @private
 	 */
-	static maxOrMin(guild, value, min, max, name, suffix = '') {
-		if (min && max) {
+	static maxOrMin(client, guild, value, min = null, max = null, name, suffix) {
+		suffix = suffix ? (guild ? guild.language : client.languages.default).get(suffix) : '';
+		if (min !== null && max !== null) {
 			if (value >= min && value <= max) return true;
-			if (min === max) throw (guild ? guild.language : this.language).get('RESOLVER_MINMAX_EXACTLY', name, min, suffix);
-			throw (guild ? guild.language : this.language).get('RESOLVER_MINMAX_BOTH', name, min, max, suffix);
-		} else if (min) {
+			if (min === max) throw (guild ? guild.language : client.languages.default).get('RESOLVER_MINMAX_EXACTLY', name, min, suffix);
+			throw (guild ? guild.language : client.languages.default).get('RESOLVER_MINMAX_BOTH', name, min, max, suffix);
+		} else if (min !== null) {
 			if (value >= min) return true;
-			throw (guild ? guild.language : this.language).get('RESOLVER_MINMAX_MIN', name, min, suffix);
-		} else if (max) {
+			throw (guild ? guild.language : client.languages.default).get('RESOLVER_MINMAX_MIN', name, min, suffix);
+		} else if (max !== null) {
 			if (value <= max) return true;
-			throw (guild ? guild.language : this.language).get('RESOLVER_MINMAX_MAX', name, max, suffix);
+			throw (guild ? guild.language : client.languages.default).get('RESOLVER_MINMAX_MAX', name, max, suffix);
 		}
 		return true;
 	}

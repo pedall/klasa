@@ -7,48 +7,32 @@ const RichDisplay = require('./RichDisplay');
 class RichMenu extends RichDisplay {
 
 	/**
-	 * A single unicode character
-	 * @typedef {string} emoji
-	 * @memberof RichMenu
+	 * @typedef {RichDisplayEmojisObject} RichMenuEmojisObject
+	 * @property {Emoji} zero The emoji for the 'zero' button
+	 * @property {Emoji} one The emoji for the 'one' button
+	 * @property {Emoji} two The emoji for the 'two' button
+	 * @property {Emoji} three The emoji for the 'three' button
+	 * @property {Emoji} four The emoji for the 'four' button
+	 * @property {Emoji} five The emoji for the 'five' button
+	 * @property {Emoji} six The emoji for the 'six' button
+	 * @property {Emoji} seven The emoji for the 'seven' button
+	 * @property {Emoji} eight The emoji for the 'eight' button
+	 * @property {Emoji} nine The emoji for the 'nine' button
 	 */
 
 	/**
-	 * @typedef {object} RichMenuEmojisObject
-	 * @memberof RichMenu
-	 * @property {emoji} first
-	 * @property {emoji} back
-	 * @property {emoji} forward
-	 * @property {emoji} last
-	 * @property {emoji} jump
-	 * @property {emoji} info
-	 * @property {emoji} stop
-	 * @property {emoji} zero
-	 * @property {emoji} one
-	 * @property {emoji} two
-	 * @property {emoji} three
-	 * @property {emoji} four
-	 * @property {emoji} five
-	 * @property {emoji} six
-	 * @property {emoji} seven
-	 * @property {emoji} eight
-	 * @property {emoji} nine
-	 */
-
-	/**
-	 * @typedef {object} MenuOption
-	 * @memberof RichMenu
+	 * @typedef {Object} MenuOption
 	 * @property {string} name The name of the option
 	 * @property {string} body The description of the option
-	 * @property {boolean} [inline = false] Whether the option should be inline
+	 * @property {boolean} [inline=false] Whether the option should be inline
 	 */
 
 	/**
-	 * @typedef {object} RichMenuRunOptions
-	 * @memberof RichMenu
-	 * @property {Function} [filter] A filter function to add to the ReactionHandler (Recieves: Reaction, User)
-	 * @property {boolean} [stop = true] If a stop reaction should be included
-	 * @property {string} [prompt = 'Which page would you like to jump to?'] The prompt to be used when awaiting user input on a page to jump to
-	 * @property {number} [startPage = 0] The page to start the RichMenu on
+	 * @typedef {Object} RichMenuRunOptions
+	 * @property {Function} [filter] A filter function to add to the ReactionHandler (Receives: Reaction, User)
+	 * @property {boolean} [stop=true] If a stop reaction should be included
+	 * @property {string} [prompt=msg.language.get('REACTIONHANDLER_PROMPT')] The prompt to be used when awaiting user input on a page to jump to
+	 * @property {number} [startPage=0] The page to start the RichMenu on
 	 * @property {number} [max] The maximum total amount of reactions to collect
 	 * @property {number} [maxEmojis] The maximum number of emojis to collect
 	 * @property {number} [maxUsers] The maximum number of users to react
@@ -58,7 +42,7 @@ class RichMenu extends RichDisplay {
 	/**
 	 * Constructs our RichMenu instance
 	 * @since 0.4.0
-	 * @param  {external:MessageEmbed} [embed=new MessageEmbed()] A Template embed to apply to all pages
+	 * @param {external:MessageEmbed} [embed=new MessageEmbed()] A Template embed to apply to all pages
 	 */
 	constructor(embed) {
 		super(embed);
@@ -110,8 +94,9 @@ class RichMenu extends RichDisplay {
 	 * @since 0.4.0
 	 * @param {string} name The name of the option
 	 * @param {string} body The description of the option
-	 * @param {boolean} [inline = false] Whether the option should be inline
-	 * @returns {RichMenu} this RichMenu
+	 * @param {boolean} [inline=false] Whether the option should be inline
+	 * @returns {this}
+	 * @chainable
 	 */
 	addOption(name, body, inline = false) {
 		this.options.push({ name, body, inline });
@@ -131,17 +116,19 @@ class RichMenu extends RichDisplay {
 	}
 
 	/**
-	 * Determins the emojis to use in this menu
+	 * Determines the emojis to use in this menu
 	 * @since 0.4.0
-	 * @param {emoji[]} emojis An array of emojis to use
+	 * @param {Emoji[]} emojis An array of emojis to use
 	 * @param {boolean} stop Whether the stop emoji should be included
-	 * @returns {emoji[]}
+	 * @param {boolean} jump Whether the jump emoji should be included
+	 * @param {boolean} firstLast Whether the first & last emojis should be included
+	 * @returns {Emoji[]}
 	 * @private
 	 */
-	_determineEmojis(emojis, stop) {
+	_determineEmojis(emojis, stop, jump, firstLast) {
 		emojis.push(this.emojis.zero, this.emojis.one, this.emojis.two, this.emojis.three, this.emojis.four, this.emojis.five, this.emojis.six, this.emojis.seven, this.emojis.eight, this.emojis.nine);
 		if (this.options.length < 10) emojis = emojis.slice(0, this.options.length);
-		return super._determineEmojis(emojis, stop);
+		return super._determineEmojis(emojis, stop, jump, firstLast);
 	}
 
 	/**

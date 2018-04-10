@@ -2,8 +2,9 @@ const { Event } = require('klasa');
 
 module.exports = class extends Event {
 
-	run(old, msg) {
-		if (old.content !== msg.content && this.client.config.cmdEditing) this.client.emit('message', msg);
+	async run(old, msg) {
+		if (!this.client.ready || old.content === msg.content) return;
+		this.client.monitors.run(msg, true);
 	}
 
 };

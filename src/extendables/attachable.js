@@ -3,12 +3,11 @@ const { Extendable } = require('klasa');
 module.exports = class extends Extendable {
 
 	constructor(...args) {
-		super(...args, ['GroupDMChannel', 'DMChannel', 'TextChannel']);
+		super(...args, { appliesTo: ['GroupDMChannel', 'DMChannel', 'TextChannel'] });
 	}
 
 	get extend() {
-		if (!this.guild) return true;
-		return this.postable && this.permissionsFor(this.guild.me).has('ATTACH_FILES');
+		return !this.guild || (this.postable && this.permissionsFor(this.guild.me).has('ATTACH_FILES'));
 	}
 
 };

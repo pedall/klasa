@@ -1,76 +1,35 @@
-const Piece = require('./interfaces/Piece');
+const Piece = require('./base/Piece');
 
 /**
  * Base class for all Klasa Inhibitors. See {@tutorial CreatingInhibitors} for more information how to use this class
  * to build custom inhibitors.
  * @tutorial CreatingInhibitors
- * @implements {Piece}
+ * @extends Piece
  */
-class Inhibitor {
+class Inhibitor extends Piece {
 
 	/**
-	 * @typedef {Object} InhibitorOptions
-	 * @memberof Inhibitor
-	 * @property {string} [name = theFileName] The name of the inhibitor
-	 * @property {boolean} [enabled=true] Whether the inhibitor is enabled or not
+	 * @typedef {PieceOptions} InhibitorOptions
 	 * @property {boolean} [spamProtection=false] If this inhibitor is meant for spamProtection (disables the inhibitor while generating help)
 	 */
 
 	/**
 	 * @since 0.0.1
 	 * @param {KlasaClient} client The Klasa client
-	 * @param {string} dir The path to the core or user inhibitor pieces folder
+	 * @param {InhibitorStore} store The Inhibitor Store
 	 * @param {string} file The path from the pieces folder to the inhibitor file
-	 * @param {InhibitorOptions} [options = {}] Optional Inhibitor settings
+	 * @param {boolean} core If the piece is in the core directory or not
+	 * @param {InhibitorOptions} [options={}] Optional Inhibitor settings
 	 */
-	constructor(client, dir, file, options = {}) {
-		/**
-		 * @since 0.0.1
-		 * @type {KlasaClient}
-		 */
-		this.client = client;
-
-		/**
-		 * The directory to where this inhibitor piece is stored
-		 * @since 0.0.1
-		 * @type {string}
-		 */
-		this.dir = dir;
-
-		/**
-		 * The file location where this inhibitor is stored
-		 * @since 0.0.1
-		 * @type {string}
-		 */
-		this.file = file;
-
-		/**
-		 * The name of the inhibitor
-		 * @since 0.0.1
-		 * @type {string}
-		 */
-		this.name = options.name || file.slice(0, -3);
-
-		/**
-		 * The type of Klasa piece this is
-		 * @since 0.0.1
-		 * @type {string}
-		 */
-		this.type = 'inhibitor';
-
-		/**
-		 * If the inhibitor is enabled or not
-		 * @since 0.0.1
-		 * @type {boolean}
-		 */
-		this.enabled = 'enabled' in options ? options.enabled : true;
+	constructor(client, store, file, core, options = {}) {
+		super(client, store, file, core, options);
 
 		/**
 		 * If this inhibitor is meant for spamProtection (disables the inhibitor while generating help)
 		 * @since 0.0.1
 		 * @type {boolean}
 		 */
-		this.spamProtection = 'spamProtection' in options ? options.spamProtection : false;
+		this.spamProtection = options.spamProtection;
 	}
 
 	/**
@@ -78,33 +37,25 @@ class Inhibitor {
 	 * @since 0.0.1
 	 * @param {KlasaMessage} msg The message that triggered this inhibitor
 	 * @param {Command} cmd The command to run
-	 * @abstract
 	 * @returns {(void|string)}
+	 * @abstract
 	 */
-	run() {
+	async run() {
 		// Defined in extension Classes
+		return;
 	}
 
 	/**
-	 * The init method to be optionaly overwritten in actual inhibitors
-	 * @since 0.0.1
-	 * @abstract
-	 * @returns {void}
+	 * Defines the JSON.stringify behavior of this inhibitor.
+	 * @returns {Object}
 	 */
-	async init() {
-		// Optionally defined in extension Classes
+	toJSON() {
+		return {
+			...super.toJSON(),
+			spamProtection: this.spamProtection
+		};
 	}
 
-	// left for documentation
-	/* eslint-disable no-empty-function */
-	async reload() {}
-	unload() {}
-	disable() {}
-	enable() {}
-	/* eslint-enable no-empty-function */
-
 }
-
-Piece.applyToClass(Inhibitor);
 
 module.exports = Inhibitor;

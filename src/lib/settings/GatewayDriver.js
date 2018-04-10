@@ -1,18 +1,33 @@
-const Gateway = require('./Gateway');
-const GatewaySQL = require('./GatewaySQL');
 const SettingResolver = require('../parsers/SettingResolver');
-const { Guild, User } = require('discord.js');
+const Gateway = require('./Gateway');
 
 /**
+ * <warning>GatewayDriver is a singleton, use {@link KlasaClient#gateways} instead.</warning>
  * Gateway's driver to make new instances of it, with the purpose to handle different databases simultaneously.
  */
 class GatewayDriver {
 
 	/**
-	 * @typedef  {Object} SettingsOptions
-	 * @property {string} [provider]
-	 * @property {boolean} [nice]
-	 * @memberof GatewayDriver
+	 * @typedef {Object} GatewayDriverAddOptions
+	 * @property {string} [provider] The name of the provider to use
+	 * @property {boolean} [nice=false] Whether the JSON provider should use sequential or burst mode
+	 */
+
+	/**
+	 * @typedef {Object} GatewayDriverGuildsSchema
+	 * @property {SchemaPieceJSON} prefix The per-guild's configurable prefix key
+	 * @property {SchemaPieceJSON} language The per-guild's configurable language key
+	 * @property {SchemaPieceJSON} disableNaturalPrefix The per-guild's configurable disableNaturalPrefix key
+	 * @property {SchemaPieceJSON} disabledCommands The per-guild's configurable disabledCommands key
+	 * @private
+	 */
+
+	/**
+	 * @typedef {Object} GatewayDriverClientStorageSchema
+	 * @property {SchemaPieceJSON} userBlacklist The client's configurable user blacklist key
+	 * @property {SchemaPieceJSON} guildBlacklist The client's configurable guild blacklist key
+	 * @property {SchemaPieceJSON} schedules The schedules where {@link ScheduledTask}s are stored at
+	 * @private
 	 */
 
 	/**
@@ -30,6 +45,16 @@ class GatewayDriver {
 		Object.defineProperty(this, 'client', { value: client });
 
 		/**
+		 * The register creation queue.
+		 * @since 0.5.0
+		 * @name GatewayDriver#_queue
+		 * @type {Map<string, Function>}
+		 * @readonly
+		 * @private
+		 */
+		Object.defineProperty(this, '_queue', { value: new Map() });
+
+		/**
 		 * The resolver instance this Gateway uses to parse the data.
 		 * @type {SettingResolver}
 		 */
@@ -37,47 +62,66 @@ class GatewayDriver {
 
 		/**
 		 * All the types accepted for the Gateway.
-		 * @type {string[]}
+		 * @type {Set<string>}
 		 */
-		this.types = Object.getOwnPropertyNames(SettingResolver.prototype).slice(1);
+		this.types = new Set(Object.getOwnPropertyNames(SettingResolver.prototype).slice(1));
 
 		/**
-		 * All the caches added
-		 * @type {string[]}
+		 * All the gateways added
+		 * @type {Set<string>}
 		 */
-		this.caches = [];
+		this.keys = new Set();
 
 		/**
 		 * If the driver is ready
-		 * @type {string[]}
+		 * @type {boolean}
 		 */
 		this.ready = false;
+
+		/**
+		 * The Gateway that manages per-guild data
+		 * @type {?Gateway}
+		 */
+		this.guilds = null;
+
+		/**
+		 * The Gateway that manages per-user data
+		 * @type {?Gateway}
+		 */
+		this.users = null;
+
+		/**
+		 * The Gateway that manages per-client data
+		 * @type {?Gateway}
+		 */
+		this.clientStorage = null;
 	}
 
 	/**
 	 * The data schema Klasa uses for guild configs.
-	 * @since 0.3.0
+	 * @since 0.5.0
 	 * @readonly
+	 * @type {GatewayDriverGuildsSchema}
 	 */
-	get defaultDataSchema() {
+	get guildsSchema() {
 		return {
 			prefix: {
 				type: 'string',
-				default: this.client.config.prefix,
+				default: this.client.options.prefix,
 				min: null,
 				max: 10,
-				array: this.client.config.prefix.constructor.name === 'Array',
+				array: this.client.options.prefix.constructor.name === 'Array',
 				configurable: true,
-				sql: `VARCHAR(10) NOT NULL DEFAULT '${this.client.config.prefix.constructor.name === 'Array' ? JSON.stringify(this.client.config.prefix) : this.client.config.prefix}'`
+				sql: `VARCHAR(10) NOT NULL DEFAULT '${this.client.options.prefix.constructor.name === 'Array' ? JSON.stringify(this.client.options.prefix) : this.client.options.prefix}'`
 			},
 			language: {
 				type: 'language',
-				default: this.client.config.language,
+				default: this.client.options.language,
 				min: null,
 				max: null,
 				array: false,
 				configurable: true,
-				sql: `VARCHAR(5) NOT NULL DEFAULT '${this.client.config.language}'`
+				sql: `VARCHAR(5) NOT NULL DEFAULT '${this.client.options.language}'`
 			},
 			disableNaturalPrefix: {
 				type: 'boolean',
@@ -85,7 +129,7 @@ class GatewayDriver {
 				min: null,
 				max: null,
 				array: false,
-				configurable: Boolean(this.client.config.regexPrefix),
+				configurable: Boolean(this.client.options.regexPrefix),
 				sql: `BIT(1) NOT NULL DEFAULT 0`
 			},
 			disabledCommands: {
@@ -101,119 +145,146 @@ class GatewayDriver {
 	}
 
 	/**
-	 * Add a new instance of SettingGateway, with its own validateFunction and schema.
-	 * @since 0.3.0
-	 * @param {string} name The name for the new instance.
-	 * @param {Function} validateFunction The function that validates the input.
-	 * @param {Object} [schema={}] The schema.
-	 * @param {SettingsOptions} [options={}] A provider to use. If not specified it'll use the one in the client.
-	 * @param {boolean} [download=true] Whether this Gateway should download the data from the database at init.
-	 * @returns {Gateway}
-	 * @example
-	 * // Add a new SettingGateway instance, called 'users', which input takes users, and stores a quote which is a string between 2 and 140 characters.
-	 * const validate = async function(resolver, user) {
-	 *	 const result = await resolver.user(user);
-	 *	 if (!result) throw 'The parameter <User> expects either a User ID or a User Object.';
-	 *	 return result;
-	 * };
-	 * const schema = {
-	 *	 quote: {
-	 *		 type: 'String',
-	 *		 default: null,
-	 *		 array: false,
-	 *		 min: 2,
-	 *		 max: 140,
-	 *	 },
-	 * };
-	 * GatewayDriver.add('users', validate, schema);
+	 * The data schema Klasa uses for client-wide configs.
+	 * @since 0.5.0
+	 * @readonly
+	 * @type {GatewayDriverClientStorageSchema}
 	 */
-	async add(name, validateFunction, schema = {}, options = {}, download = true) {
-		if (typeof name !== 'string') throw 'You must pass a name for your new gateway and it must be a string.';
-		if (typeof this[name] !== 'undefined') throw 'There is already a Gateway with that name.';
-		if (typeof validateFunction !== 'function') throw 'You must pass a validate function.';
-		validateFunction = validateFunction.bind(this);
-		if (schema.constructor.name !== 'Object') throw 'Schema must be a valid object or left undefined for an empty object.';
+	get clientStorageSchema() {
+		return {
+			userBlacklist: {
+				type: 'user',
+				default: [],
+				min: null,
+				max: null,
+				array: true,
+				configurable: true,
+				sql: 'TEXT'
+			},
+			guildBlacklist: {
+				type: 'string',
+				default: [],
+				min: 17,
+				max: 19,
+				array: true,
+				configurable: true,
+				sql: 'TEXT'
+			},
+			schedules: {
+				type: 'any',
+				default: [],
+				min: null,
+				max: null,
+				array: true,
+				configurable: false,
+				sql: 'TEXT'
+			}
+		};
+	}
 
-		options.provider = this._checkProvider(options.provider || this.client.config.provider.engine || 'json');
-		if (options.provider.cache) throw `The provider ${options.provider.name} is designed for caching, not persistent data. Please try again with another.`;
-		options.cache = this._checkProvider('collection');
-		if (options.cache.cache === false) throw `The provider ${options.cache.name} is designed for persistent data, not cache. Please try again with another.`;
+	/**
+	 * Registers a new Gateway.
+	 * @since 0.5.0
+	 * @param {string} name The name for the new gateway
+	 * @param {Object} [schema={}] The schema for use in this gateway
+	 * @param {GatewayDriverAddOptions} [options={}] The options for the new gateway
+	 * @chainable
+	 * @returns {this}
+	 */
+	register(name, schema = {}, options = {}) {
+		if (!this.ready) {
+			if (this._queue.has(name)) throw new Error(`There is already a Gateway with the name '${name}'.`);
+			this._queue.set(name, () => {
+				this._register(name, schema, options);
+				this._queue.delete(name);
+			});
+		} else {
+			this._register(name, schema, options);
+		}
 
-		if (options.provider.sql) this[name] = new GatewaySQL(this, name, validateFunction, schema, options);
-		else this[name] = new Gateway(this, name, validateFunction, schema, options);
-
-		await this[name].init(download);
-		this.caches.push(name);
-		return this[name];
+		return this;
 	}
 
 	/**
 	 * Readies up all Gateways and Configuration instances
 	 * @since 0.5.0
-	 * @returns {Promise<Array<Array<external:Collection<string, Configuration>>>>}
+	 * @returns {Array<Array<external:Collection<string, Configuration>>>}
 	 * @private
 	 */
-	_ready() {
-		if (this.ready) throw 'Configuration has already run the ready method.';
+	async _ready() {
+		if (this.ready) throw new Error('Configuration has already run the ready method.');
 		this.ready = true;
 		const promises = [];
-		for (const cache of this.caches) {
-			this[cache].ready = true;
-			promises.push(this[cache]._ready());
+		for (const register of this._queue.values()) register();
+		for (const key of this.keys) {
+			// If the gateway did not init yet, init it now
+			if (!this[key].ready) await this[key].init();
+			promises.push(this[key]._ready());
 		}
 		return Promise.all(promises);
 	}
 
 	/**
+	 * Registers a new Gateway
+	 * @since 0.5.0
+	 * @param {string} name The name for the new gateway
+	 * @param {Object} schema The schema for use in this gateway
+	 * @param {GatewayDriverAddOptions} options The options for the new gateway
+	 * @returns {Gateway}
+	 * @private
+	 */
+	_register(name, schema, options) {
+		if (typeof name !== 'string') throw new Error('You must pass a name for your new gateway and it must be a string.');
+
+		if (this[name] !== undefined && this[name] !== null) throw new Error(`There is already a Gateway with the name '${name}'.`);
+		if (!this.client.methods.util.isObject(schema)) throw new Error('Schema must be a valid object or left undefined for an empty object.');
+
+		options.provider = this._checkProvider(options.provider || this.client.options.providers.default);
+		const provider = this.client.providers.get(options.provider);
+		if (provider.cache) throw new Error(`The provider ${provider.name} is designed for caching, not persistent data. Please try again with another.`);
+
+		const gateway = new Gateway(this, name, schema, options);
+		this.keys.add(name);
+		this[name] = gateway;
+
+		return gateway;
+	}
+
+	/**
 	 * Check if a provider exists.
 	 * @since 0.5.0
-	 * @param {string} engine Check if a provider exists.
-	 * @returns {Provider}
+	 * @param {string} engine Check if a provider exists
+	 * @returns {string}
 	 * @private
 	 */
 	_checkProvider(engine) {
-		const provider = this.client.providers.get(engine);
-		if (!provider) throw `This provider (${engine}) does not exist in your system.`;
-
-		return provider;
+		if (this.client.providers.has(engine)) return engine;
+		throw new Error(`This provider (${engine}) does not exist in your system.`);
 	}
 
 	/**
-	 * The validator function Klasa uses for guild configs.
+	 * The GatewayDriver with all gateways, types and keys as JSON.
 	 * @since 0.5.0
-	 * @param {(Object|string)} guildResolvable The guild to validate.
-	 * @returns {KlasaGuild}
-	 * @private
+	 * @returns {Object}
 	 */
-	async validateGuild(guildResolvable) {
-		if (guildResolvable) {
-			let value;
+	toJSON() {
+		const object = {
+			types: [...this.types],
+			keys: [...this.keys],
+			ready: this.ready
+		};
+		for (const key of this.keys) object[key] = this[key].toJSON();
 
-			if (typeof guildResolvable === 'string' && /^\d{17,19}$/.test(guildResolvable)) value = this.client.guilds.get(guildResolvable);
-			else if (guildResolvable instanceof Guild) value = guildResolvable;
-			if (value) return value;
-		}
-
-		throw new Error('The parameter <Guild> expects either a Guild ID or a Guild Instance.');
+		return object;
 	}
 
 	/**
-	 * The validator function Klasa uses for user configs.
+	 * The stringified GatewayDriver with all the managed gateways.
 	 * @since 0.5.0
-	 * @param {(Object|string)} userResolvable The user to validate.
-	 * @returns {KlasaUser}
-	 * @private
+	 * @returns {string}
 	 */
-	async validateUser(userResolvable) {
-		if (userResolvable) {
-			let value;
-
-			if (typeof userResolvable === 'string' && /^\d{17,19}$/.test(userResolvable)) value = await this.client.users.fetch(userResolvable);
-			else if (userResolvable instanceof User) value = userResolvable;
-			if (value) return value;
-		}
-
-		throw new Error('The parameter <User> expects either a User ID or a User Instance.');
+	toString() {
+		return `GatewayDriver(${[...this.keys].join(', ')})`;
 	}
 
 }
