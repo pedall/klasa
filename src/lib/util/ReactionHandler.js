@@ -328,6 +328,7 @@ class ReactionHandler extends ReactionCollector {
 	 */
 	async _queueEmojiReactions(emojis) {
 		if (this.ended) return this.message.reactions.removeAll();
+		if (!this.message.channel.messages.has(this.message.id)) {return null;
 		await this.message.react(emojis.shift());
 		if (emojis.length) return this._queueEmojiReactions(emojis);
 		this.reactionsDone = true;
