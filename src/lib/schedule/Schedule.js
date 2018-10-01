@@ -33,13 +33,6 @@ class Schedule {
 		this.tasks = [];
 
 		/**
-		 * The time in milliseconds for the delay between interval executions
-		 * @since 0.5.0
-		 * @type {number}
-		 */
-		this.timeInterval = this.client.options.schedule.interval;
-
-		/**
 		 * The current interval that runs the tasks
 		 * @since 0.5.0
 		 * @type {NodeJS.Timer}
@@ -55,7 +48,7 @@ class Schedule {
 	 * @private
 	 */
 	get _tasks() {
-		return this.client.configs.schedules;
+		return this.client.settings.schedules;
 	}
 
 	/**
@@ -63,19 +56,6 @@ class Schedule {
 	 * @since 0.5.0
 	 */
 	async init() {
-		const { schema } = this.client.gateways.clientStorage;
-		if (!schema.has('schedules')) {
-			await schema.add('schedules', {
-				type: 'any',
-				default: [],
-				min: null,
-				max: null,
-				array: true,
-				configurable: false,
-				sql: 'TEXT'
-			});
-		}
-
 		const tasks = this._tasks;
 		if (!tasks || !Array.isArray(tasks)) return;
 
@@ -158,8 +138,8 @@ class Schedule {
 	 */
 	async create(taskName, time, options) {
 		const task = await this._add(taskName, time, options);
-		if (!task) return undefined;
-		await this.client.configs.update('schedules', task.toJSON(), { action: 'add' });
+		if (!task) return null;
+		await this.client.settings.update('schedules', task, { action: 'add' });
 		return task;
 	}
 
@@ -170,14 +150,13 @@ class Schedule {
 	 * @returns {this}
 	 */
 	async delete(id) {
-		const _task = this._tasks.find(entry => entry.id === id);
-		if (!_task) throw new Error('This task does not exist.');
+		const taskIndex = this.tasks.findIndex(entry => entry.id === id);
+		if (taskIndex === -1) throw new Error('This task does not exist.');
 
+		this.tasks.splice(taskIndex, 1);
 		// Get the task and use it to remove
-		await this.client.configs.update('schedules', _task, { action: 'remove' });
-
-		// Remove the task from the current cache if successful
-		this.tasks.splice(this.tasks.findIndex(entry => entry.id === id), 1);
+		const task = this._tasks.find(entry => entry.id === id);
+		if (task) await this.client.settings.update('schedules', task, { action: 'remove' });
 
 		return this;
 	}
@@ -187,8 +166,8 @@ class Schedule {
 	 * @since 0.5.0
 	 */
 	async clear() {
-		// this._tasks is unedited as Configuration#clear will clear the array
-		await this.client.configs.reset('schedules');
+		// this._tasks is unedited as Settings#clear will clear the array
+		await this.client.settings.reset('schedules');
 		this.tasks = [];
 	}
 
@@ -203,10 +182,12 @@ class Schedule {
 	 */
 	async _add(taskName, time, options) {
 		const task = new ScheduledTask(this.client, taskName, time, options);
+
+		// If the task were due of time before the bot's intialization, delete if not recurring, else update for next period
 		if (!task.catchUp && task.time < Date.now()) {
 			if (!task.recurring) {
 				await task.delete();
-				return undefined;
+				return null;
 			}
 			await task.update({ time: task.recurring });
 		}
@@ -246,7 +227,7 @@ class Schedule {
 	 */
 	_checkInterval() {
 		if (!this.tasks.length) this._clearInterval();
-		else if (!this._interval) this._interval = this.client.setInterval(this.execute.bind(this), this.timeInterval);
+		else if (!this._interval) this._interval = this.client.setInterval(this.execute.bind(this), this.client.options.schedule.interval);
 	}
 
 	/**
@@ -261,7 +242,7 @@ class Schedule {
 	 */
 
 	*[Symbol.iterator]() {
-		for (let i = 0; i < this.tasks.length; i++) yield this.tasks[i];
+		yield* this.tasks;
 	}
 
 }

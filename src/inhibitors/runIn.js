@@ -2,10 +2,9 @@ const { Inhibitor } = require('klasa');
 
 module.exports = class extends Inhibitor {
 
-	async run(msg, cmd) {
-		if (!cmd.runIn.length) throw msg.language.get('INHIBITOR_RUNIN_NONE', cmd.name);
-		if (cmd.runIn.includes(msg.channel.type)) return;
-		throw msg.language.get('INHIBITOR_RUNIN', cmd.runIn.join(', '));
+	async run(message, command) {
+		if (!command.runIn.length) throw message.language.get('INHIBITOR_RUNIN_NONE', command.name);
+		if (!command.runIn.includes(message.channel.type)) throw message.language.get('INHIBITOR_RUNIN', command.runIn.join(', '));
 	}
 
 };

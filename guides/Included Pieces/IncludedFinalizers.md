@@ -16,6 +16,7 @@ Emits log to log command use in the console.
 
 ## Further Reading:
 
+- {@tutorial IncludedArguments}
 - {@tutorial IncludedCommands}
 - {@tutorial IncludedEvents}
 - {@tutorial IncludedExtendables}
@@ -23,4 +24,5 @@ Emits log to log command use in the console.
 - {@tutorial IncludedLanguages}
 - {@tutorial IncludedMonitors}
 - {@tutorial IncludedProviders}
+- {@tutorial IncludedSerializers}
 - {@tutorial IncludedTasks}

@@ -1,9 +1,14 @@
 const Cron = require('../util/Cron');
+const { isObject } = require('../util/util');
 
 /**
  * The structure for future tasks to be run
  */
 class ScheduledTask {
+
+	/**
+	 * @typedef  {(Date|number|Cron|string)} TimeResolvable
+	 */
 
 	/**
 	 * @typedef  {Object} ScheduledTaskOptions
@@ -14,8 +19,7 @@ class ScheduledTask {
 
 	/**
 	 * @typedef  {Object} ScheduledTaskUpdateOptions
-	 * @property {string} [repeat] The {@link Cron} pattern
-	 * @property {Date} [time] The time the current task ends at
+	 * @property {TimeResolvable} [time] The time or {@link Cron} pattern
 	 * @property {boolean} [catchUp] If the task should try to catch up if the bot is down
 	 * @property {*} [data] The data to pass to the Task piece when the ScheduledTask is ready for execution
 	 */
@@ -27,7 +31,7 @@ class ScheduledTask {
 	 * @property {number} time The UNIX timestamp for when this task ends at
 	 * @property {boolean} catchUp If the task should try to catch up if the bot is down
 	 * @property {string} [repeat] The {@link Cron} pattern
-	 * @property {*} [data] The data to pass to the Task piece when the ScheduledTask is ready for execution
+	 * @property {Object<string,*>} data The data to pass to the Task piece when the ScheduledTask is ready for execution
 	 */
 
 	/**
@@ -35,7 +39,7 @@ class ScheduledTask {
 	 * @since 0.5.0
 	 * @param {KlasaClient} client The client that initialized this instance
 	 * @param {string} taskName The name of the task this ScheduledTask is for
-	 * @param {(Date|number|string)} time The time or Cron pattern
+	 * @param {TimeResolvable} time The time or {@link Cron} pattern
 	 * @param {ScheduledTaskOptions} [options={}] The options for this ScheduledTask instance
 	 */
 	constructor(client, taskName, time, options = {}) {
@@ -67,7 +71,7 @@ class ScheduledTask {
 		/**
 		 * The Date when this scheduled task ends
 		 * @since 0.5.0
-		 * @type {?Date}
+		 * @type {Date}
 		 */
 		this.time = 'time' in options ? new Date(options.time) : _time;
 
@@ -90,7 +94,15 @@ class ScheduledTask {
 		 * @since 0.5.0
 		 * @type {*}
 		 */
-		this.data = 'data' in options ? options.data : null;
+		this.data = 'data' in options && isObject(options.data) ? options.data : {};
+
+		/**
+		 * If the ScheduledTask is being run currently
+		 * @since 0.5.0
+		 * @type {boolean}
+		 * @private
+		 */
+		this.running = false;
 
 		this.constructor._validate(this);
 	}
@@ -122,14 +134,17 @@ class ScheduledTask {
 	 * @returns {this}
 	 */
 	async run() {
-		if (!this.task || !this.task.enabled) return this;
+		const { task } = this;
+		if (!task || !task.enabled || this.running) return this;
+
+		this.running = true;
 		try {
-			this.task.disable();
-			await this.task.run({ id: this.id, ...(this.data || {}) });
-			this.task.enable();
+			await task.run({ id: this.id, ...this.data });
 		} catch (err) {
-			this.client.emit('taskError', this, this.task, err);
+			this.client.emit('taskError', this, task, err);
 		}
+		this.running = false;
+
 		if (!this.recurring) return this.delete();
 		return this.update({ time: this.recurring });
 	}
@@ -161,7 +176,7 @@ class ScheduledTask {
 		// Sync the database if some of the properties changed or the time changed manually
 		// (recurring tasks bump the time automatically)
 		const _index = this.store._tasks.findIndex(entry => entry.id === this.id);
-		if (_index !== -1) await this.client.configs.update('schedules', this.toJSON(), { arrayPosition: _index });
+		if (_index !== -1) await this.client.settings.update('schedules', this.toJSON(), { arrayPosition: _index });
 
 		return this;
 	}
@@ -185,17 +200,20 @@ class ScheduledTask {
 	 * @returns {ScheduledTaskJSON}
 	 */
 	toJSON() {
-		const object = { id: this.id, taskName: this.taskName, time: this.time.getTime(), catchUp: this.catchUp };
-		if (this.recurring) object.repeat = this.recurring.cron;
-		if (typeof this.data !== 'undefined') object.data = this.data;
-
-		return object;
+		return {
+			id: this.id,
+			taskName: this.taskName,
+			time: this.time.getTime(),
+			catchUp: this.catchUp,
+			data: this.data,
+			repeat: this.recurring ? this.recurring.cron : null
+		};
 	}
 
 	/**
 	 * Resolve the time and cron
 	 * @since 0.5.0
-	 * @param {(Date|number|Cron|string)} time The time or Cron pattern
+	 * @param {TimeResolvable} time The time or {@link Cron} pattern
 	 * @returns {any[]}
 	 * @private
 	 */
@@ -218,7 +236,7 @@ class ScheduledTask {
 	 * @private
 	 */
 	static _generateID(client) {
-		return Date.now().toString(36) + (client.shard ? client.shard.id.toString(36) : '') + String.fromCharCode((1 % 26) + 97);
+		return Date.now().toString(36) + (client.shard ? client.shard.id.toString(36) : '');
 	}
 
 	/**
@@ -230,6 +248,7 @@ class ScheduledTask {
 	static _validate(st) {
 		if (!st.task) throw new Error('invalid task');
 		if (!st.time) throw new Error('time or repeat option required');
+		if (Number.isNaN(st.time.getTime())) throw new Error('invalid time passed');
 	}
 
 }

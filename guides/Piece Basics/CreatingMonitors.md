@@ -20,11 +20,14 @@ module.exports = class extends Monitor {
 			ignoreBots: true,
 			ignoreSelf: true,
 			ignoreOthers: true,
-			ignoreEdits: true
+			ignoreWebhooks: true,
+			ignoreEdits: true,
+			ignoreBlacklistedUsers: true,
+			ignoreBlacklistedGuilds: true
 		});
 	}
 
-	run(msg) {
+	run(message) {
 		// This is where you place the code you want to run for your monitor
 	}
 
@@ -38,21 +41,25 @@ module.exports = class extends Monitor {
 };
 ```
 
-## Configuration
+## Options
 
-| Name             | Default       | Type    | Description                               |
-| ---------------- | ------------- | ------- | ----------------------------------------- |
-| **name**         | `theFileName` | string  | The name of the monitor                   |
-| **enabled**      | `true`        | boolean | Whether the monitor is enabled or not     |
-| **ignoreBots**   | `true`        | boolean | Whether the monitor ignores bots or not   |
-| **ignoreSelf**   | `true`        | boolean | Whether the monitor ignores itself or not |
-| **ignoreOthers** | `true`        | boolean | Whether the monitor ignores others or not |
-| **ignoreEdits**  | `true`        | boolean | Whether the monitor ignores edits or not  |
+| Name                        | Default       | Type    | Description                                           |
+| --------------------------- | ------------- | ------- | ----------------------------------------------------- |
+| **name**                    | `theFileName` | string  | The name of the monitor                               |
+| **enabled**                 | `true`        | boolean | Whether the monitor is enabled or not                 |
+| **ignoreBots**              | `true`        | boolean | Whether the monitor ignores bots or not               |
+| **ignoreSelf**              | `true`        | boolean | Whether the monitor ignores itself or not             |
+| **ignoreOthers**            | `true`        | boolean | Whether the monitor ignores others or not             |
+| **ignoreWebhooks**          | `true`        | boolean | Whether the monitor ignores webhooks or not           |
+| **ignoreEdits**             | `true`        | boolean | Whether the monitor ignores edits or not              |
+| **ignoreBlacklistedUsers**  | `true`        | boolean | Whether the monitor ignores blacklisted users or not  |
+| **ignoreBlacklistedGuilds** | `true`        | boolean | Whether the monitor ignores blacklisted guilds or not |
 
->As with all other pieces, you can omit any optional Configuration that match the default values.
+>As with all other pieces, you can omit any optional option that match the default values.
 
 ## Further Reading:
 
+- {@tutorial CreatingArguments}
 - {@tutorial CreatingCommands}
 - {@tutorial CreatingEvents}
 - {@tutorial CreatingExtendables}
@@ -60,4 +67,6 @@ module.exports = class extends Monitor {
 - {@tutorial CreatingInhibitors}
 - {@tutorial CreatingLanguages}
 - {@tutorial CreatingProviders}
+- {@tutorial CreatingSerializers}
+- {@tutorial CreatingSQLProviders}
 - {@tutorial CreatingTasks}

@@ -15,6 +15,8 @@ class Monitor extends Piece {
 	 * @property {boolean} [ignoreOthers=true] Whether the monitor ignores others or not
 	 * @property {boolean} [ignoreWebhooks=true] Whether the monitor ignores webhooks or not
 	 * @property {boolean} [ignoreEdits=true] Whether the monitor ignores edits or not
+	 * @property {boolean} [ignoreBlacklistedUsers=true] Wether the monitor should ignore blacklisted users or not
+	 * @property {boolean} [ignoreBlacklistedGuilds=true] Wether the monitor should ignore blacklisted guilds or not
 	 */
 
 	/**
@@ -62,33 +64,49 @@ class Monitor extends Piece {
 		 * @type {boolean}
 		 */
 		this.ignoreEdits = options.ignoreEdits;
+
+		/**
+		 * Wether the monitor should ignore blacklisted users
+		 * @since 0.5.0
+		 * @type {boolean}
+		 */
+		this.ignoreBlacklistedUsers = options.ignoreBlacklistedUsers;
+
+		/**
+		 * Wether the monitor should ignore blacklisted guilds
+		 * @since 0.5.0
+		 * @type {boolean}
+		 */
+		this.ignoreBlacklistedGuilds = options.ignoreBlacklistedGuilds;
 	}
 
 	/**
 	 * The run method to be overwritten in actual monitor pieces
 	 * @since 0.0.1
-	 * @param {KlasaMessage} msg The discord message
+	 * @param {KlasaMessage} message The discord message
 	 * @returns {void}
 	 * @abstract
 	 */
 	run() {
 		// Defined in extension Classes
+		throw new Error(`The run method has not been implemented by ${this.type}:${this.name}.`);
 	}
 
 	/**
 	 * If the monitor should run based on the filter options
 	 * @since 0.5.0
-	 * @param {KlasaMessage} msg The message to check
-	 * @param {boolean} [edit=false] If the message is an edit
+	 * @param {KlasaMessage} message The message to check
 	 * @returns {boolean}
 	 */
-	shouldRun(msg, edit = false) {
+	shouldRun(message) {
 		return this.enabled &&
-			!(this.ignoreBots && msg.author.bot) &&
-			!(this.ignoreSelf && this.client.user === msg.author) &&
-			!(this.ignoreOthers && this.client.user !== msg.author) &&
-			!(this.ignoreWebhooks && msg.webhookID) &&
-			!(this.ignoreEdits && edit);
+			!(this.ignoreBots && message.author.bot) &&
+			!(this.ignoreSelf && this.client.user === message.author) &&
+			!(this.ignoreOthers && this.client.user !== message.author) &&
+			!(this.ignoreWebhooks && message.webhookID) &&
+			!(this.ignoreEdits && message._edits.length) &&
+			!(this.ignoreBlacklistedUsers && this.client.settings.userBlacklist.includes(message.author.id)) &&
+			!(this.ignoreBlacklistedGuilds && message.guild && this.client.settings.guildBlacklist.includes(message.guild.id));
 	}
 
 	/**
@@ -102,7 +120,9 @@ class Monitor extends Piece {
 			ignoreSelf: this.ignoreSelf,
 			ignoreOthers: this.ignoreOthers,
 			ignoreWebhooks: this.ignoreWebhooks,
-			ignoreEdits: this.ignoreEdits
+			ignoreEdits: this.ignoreEdits,
+			ignoreBlacklistedUsers: this.ignoreBlacklistedUsers,
+			ignoreBlacklistedGuilds: this.ignoreBlacklistedGuilds
 		};
 	}
 

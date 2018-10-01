@@ -1,19 +1,34 @@
-const SchemaFolder = require('./SchemaFolder');
-const { tryParse, deepClone } = require('../util/util');
-const { resolve } = require('path');
-const fs = require('fs-nextra');
-
 class GatewayStorage {
+
+	/**
+	 * @typedef {Object} GatewayGetPathOptions
+	 * @property {boolean} [avoidUnconfigurable=false] Whether the getPath should avoid unconfigurable keys
+	 * @property {boolean} [piece=true] Whether the getPath should return pieces or folders
+	 */
+
+	/**
+	 * @typedef {Object} GatewayGetPathResult
+	 * @property {SchemaPiece} piece The piece resolved from the path
+	 * @property {string[]} route The resolved path split by dots
+	 */
+
+	/**
+	 * @typedef {Object} GatewayJSON
+	 * @property {string} type The name of this gateway
+	 * @property {GatewayDriverRegisterOptions} options The options for this gateway
+	 * @property {Object} schema The current schema
+	 */
 
 	/**
 	 * <warning>You should never create an instance of this class as it's abstract.</warning>
 	 * @since 0.5.0
 	 * @param {KlasaClient} client The client this GatewayStorage was created with
 	 * @param {string} type The name of this GatewayStorage
+	 * @param {Schema} schema The schema for this gateway
 	 * @param {string} [provider] The provider's name
 	 * @private
 	 */
-	constructor(client, type, provider) {
+	constructor(client, type, schema, provider) {
 		/**
 		 * The client this GatewayStorage was created with.
 		 * @since 0.5.0
@@ -42,55 +57,16 @@ class GatewayStorage {
 		Object.defineProperty(this, 'providerName', { value: provider || this.client.options.providers.default });
 
 		/**
-		 * Where the bwd folder is located at.
 		 * @since 0.5.0
-		 * @name GatewayStorage#baseDir
-		 * @type {string}
-		 * @readonly
+		 * @type {Schema}
 		 */
-		Object.defineProperty(this, 'baseDir', { value: resolve(this.client.clientBaseDir, 'bwd') });
-
-		/**
-		 * Where the file schema is located at.
-		 * @since 0.5.0
-		 * @name GatewayStorage#filePath
-		 * @type {string}
-		 * @readonly
-		 */
-		Object.defineProperty(this, 'filePath', { value: resolve(this.baseDir, `${this.type}_Schema.json`) });
-
-		/**
-		 * Whether the active provider is SQL or not.
-		 * @since 0.5.0
-		 * @name GatewayStorage#sql
-		 * @type {boolean}
-		 * @readonly
-		 */
-		Object.defineProperty(this, 'sql', { value: this.provider.sql });
-
-		/**
-		 * @since 0.5.0
-		 * @type {SchemaFolder}
-		 */
-		this.schema = null;
+		this.schema = schema;
 
 		/**
 		 * @since 0.5.0
 		 * @type {boolean}
 		 */
 		this.ready = false;
-	}
-
-	/**
-	 * Get this gateway's SQL schema.
-	 * @since 0.0.1
-	 * @type {Array<string[]>}
-	 * @readonly
-	 */
-	get sqlSchema() {
-		const schema = [['id', 'VARCHAR(19) NOT NULL UNIQUE PRIMARY KEY']];
-		this.schema.getSQL(schema);
-		return schema;
 	}
 
 	/**
@@ -114,106 +90,116 @@ class GatewayStorage {
 	}
 
 	/**
+	 * Resolve a path from a string.
+	 * @since 0.5.0
+	 * @param {string} [key=null] A string to resolve
+	 * @param {GatewayGetPathOptions} [options={}] Whether the Gateway should avoid configuring the selected key
+	 * @returns {?GatewayGetPathResult}
+	 */
+	getPath(key = '', { avoidUnconfigurable = false, piece: requestPiece = true, errors = true } = {}) {
+		if (key === '' || key === '.') return { piece: this.schema, route: [] };
+		const route = key.split('.');
+		const piece = this.schema.get(route);
+
+		// The piece does not exist (invalid or non-existent path)
+		if (!piece) {
+			if (!errors) return null;
+			throw `The key ${key} does not exist in the schema.`;
+		}
+
+		if (requestPiece === null) requestPiece = piece.type !== 'Folder';
+
+		// GetPath expects a piece
+		if (requestPiece) {
+			// The piece is a key
+			if (piece.type !== 'Folder') {
+				// If the Piece is unconfigurable and avoidUnconfigurable is requested, throw
+				if (avoidUnconfigurable && !piece.configurable) {
+					if (!errors) return null;
+					throw `The key ${piece.path} is not configurable.`;
+				}
+				return { piece, route };
+			}
+
+			// The piece is a folder
+			if (!errors) return null;
+			const keys = avoidUnconfigurable ? piece.configurableKeys : [...piece.keys()];
+			throw keys.length ? `Please, choose one of the following keys: '${keys.join('\', \'')}'` : 'This group is not configurable.';
+		}
+
+		// GetPath does not expect a piece
+		if (piece.type !== 'Folder') {
+			// Remove leading key from the path
+			route.pop();
+			return { piece: piece.parent, route };
+		}
+
+		return { piece, route };
+	}
+
+	/**
 	 * Inits the current Gateway.
 	 * @since 0.5.0
 	 */
 	async init() {
+		// A gateway must not init twice
 		if (this.ready) throw new Error(`[INIT] ${this} has already initialized.`);
-		await this.initSchema();
-		await this.initTable();
 
+		// Check the provider's existence
+		const { provider } = this;
+		if (!provider) throw new Error(`This provider (${this.providerName}) does not exist in your system.`);
 		this.ready = true;
-	}
 
-	/**
-	 * Inits the table for its use in this gateway.
-	 * @since 0.5.0
-	 * @private
-	 */
-	async initTable() {
-		const hasTable = await this.provider.hasTable(this.type);
-		if (!hasTable) await this.provider.createTable(this.type, this.sql ? this.sqlSchema : undefined);
-	}
-
-	/**
-	 * Inits the schema, creating a file if it does not exist, and returning the current schema or the default.
-	 * @since 0.5.0
-	 * @returns {SchemaFolder}
-	 * @private
-	 */
-	async initSchema() {
-		await fs.ensureDir(this.baseDir);
-		const schema = await fs.readJSON(this.filePath)
-			.catch(() => fs.outputJSONAtomic(this.filePath, this.defaultSchema).then(() => this.defaultSchema));
-		this.schema = new SchemaFolder(this.client, this, schema, null, '');
-		return this.schema;
-	}
-
-	/**
-	 * Parses an entry
-	 * @since 0.5.0
-	 * @param {Object} entry An entry to parse
-	 * @returns {Object}
-	 * @private
-	 */
-	parseEntry(entry) {
-		const object = {};
+		const errors = [];
 		for (const piece of this.schema.values(true)) {
-			// If the key does not exist in the schema, ignore it.
-			if (typeof entry[piece.path] === 'undefined') continue;
+			// Assign Client to all Pieces for Serializers && Type Checking
+			piece.client = this.client;
 
-			if (piece.path.includes('.')) {
-				const path = piece.path.split('.');
-				let refObject = object;
-				for (let a = 0; a < path.length - 1; a++) {
-					const key = path[a];
-					if (typeof refObject[key] === 'undefined') refObject[path[a]] = {};
-					refObject = refObject[key];
-				}
-				refObject = GatewayStorage._parseSQLValue(entry[path[path.length - 1]], piece);
-			} else {
-				object[piece.path] = GatewayStorage._parseSQLValue(entry[piece.path], piece);
+			Object.freeze(piece);
+
+			// Check if the piece is valid
+			try {
+				piece.isValid();
+			} catch (error) {
+				errors.push(error.message);
 			}
 		}
 
-		return object;
+		if (errors.length) throw new Error(`[SCHEMA] There is an error with your schema.\n${errors.join('\n')}`);
+
+		// Init the table
+		const hasTable = await provider.hasTable(this.type);
+		if (!hasTable) await provider.createTable(this.type);
+
+		// Add any missing columns (NoSQL providers return empty array)
+		const columns = await provider.getColumns(this.type);
+		if (columns.length) {
+			const promises = [];
+			for (const [key, piece] of this.schema.paths) if (!columns.includes(key)) promises.push(provider.addColumn(this.type, piece));
+			await Promise.all(promises);
+		}
 	}
 
 	/**
-	 * Parse SQL values.
+	 * Get a JSON object containing the schema and options.
 	 * @since 0.5.0
-	 * @param {*} value The value to parse
-	 * @param {SchemaPiece} schemaPiece The SchemaPiece which manages this value
-	 * @returns {*}
-	 * @private
+	 * @returns {GatewayJSON}
 	 */
-	static _parseSQLValue(value, schemaPiece) {
-		if (typeof value === 'undefined') return deepClone(schemaPiece.default);
-		if (schemaPiece.array) {
-			if (value === null) return deepClone(schemaPiece.default);
-			if (typeof value === 'string') value = tryParse(value);
-			if (Array.isArray(value)) return value.map(val => GatewayStorage._parseSQLValue(val, schemaPiece));
-		} else {
-			switch (schemaPiece.type) {
-				case 'any':
-					if (typeof value === 'string') return tryParse(value);
-					break;
-				case 'integer':
-					if (typeof value === 'number') return value;
-					if (typeof value === 'string') return parseInt(value);
-					break;
-				case 'boolean':
-					if (typeof value === 'boolean') return value;
-					if (typeof value === 'number') return value === 1;
-					if (typeof value === 'string') return value === 'true';
-					break;
-				case 'string':
-					if (typeof value === 'string' && /^\s|\s$/.test(value)) return value.trim();
-				// no default
-			}
-		}
+	toJSON() {
+		return {
+			type: this.type,
+			options: { provider: this.providerName },
+			schema: this.schema.toJSON()
+		};
+	}
 
-		return value;
+	/**
+	 * Stringify a value or the instance itself.
+	 * @since 0.5.0
+	 * @returns {string}
+	 */
+	toString() {
+		return `Gateway(${this.type})`;
 	}
 
 }

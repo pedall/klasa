@@ -1,34 +1,36 @@
 const { Permissions } = require('discord.js');
-const Piece = require('./base/Piece');
+const AliasPiece = require('./base/AliasPiece');
 const Usage = require('../usage/Usage');
 const CommandUsage = require('../usage/CommandUsage');
+const RateLimitManager = require('../util/RateLimitManager');
+const { isFunction } = require('../util/util');
 
 /**
  * Base class for all Klasa Commands. See {@tutorial CreatingCommands} for more information how to use this class
  * to build custom commands.
  * @tutorial CreatingCommands
- * @extends Piece
+ * @extends AliasPiece
  */
-class Command extends Piece {
+class Command extends AliasPiece {
 
 	/**
-	 * @typedef {PieceOptions} CommandOptions
-	 * @property {string[]} [aliases=[]] Any command aliases
+	 * @typedef {AliasPieceOptions} CommandOptions
 	 * @property {boolean} [autoAliases=true] If automatic aliases should be added (adds aliases of name and aliases without dashes)
-	 * @property {external:PermissionResolvable} [botPerms=0] The required Discord permissions for the bot to use this command
+	 * @property {external:PermissionResolvable} [requiredPermissions=0] The required Discord permissions for the bot to use this command
 	 * @property {number} [bucket=1] The number of times this command can be run before ratelimited by the cooldown
 	 * @property {number} [cooldown=0] The amount of time before the user can run the command again in seconds
+	 * @property {string} [cooldownLevel='author'] The level the cooldown applies to (valid options are 'author', 'channel', 'guild')
 	 * @property {boolean} [deletable=false] If the responses should be deleted if the triggering message is deleted
 	 * @property {(string|Function)} [description=''] The help description for the command
-	 * @property {(string|Function)} [extendedHelp=msg.language.get('COMMAND_HELP_NO_EXTENDED')] Extended help strings
+	 * @property {(string|Function)} [extendedHelp=language.get('COMMAND_HELP_NO_EXTENDED')] Extended help strings
 	 * @property {boolean} [guarded=false] If the command can be disabled on a guild level (does not effect global disable)
 	 * @property {boolean} [nsfw=false] If the command should only run in nsfw channels
-	 * @property {number} [permLevel=0] The required permission level to use the command
+	 * @property {number} [permissionLevel=0] The required permission level to use the command
 	 * @property {number} [promptLimit=0] The number or attempts allowed for re-prompting an argument
 	 * @property {number} [promptTime=30000] The time allowed for re-prompting of this command
 	 * @property {boolean} [quotedStringSupport=false] Whether args for this command should not deliminated inside quotes
-	 * @property {string[]} [requiredConfigs=[]] The required guild configs to use this command
-	 * @property {string[]} [runIn=['text','dm','group']] What channel types the command should run in
+	 * @property {string[]} [requiredSettings=[]] The required guild settings to use this command
+	 * @property {string[]} [runIn=['text','dm']] What channel types the command should run in
 	 * @property {boolean} [subcommands=false] Whether to enable sub commands or not
 	 * @property {string} [usage=''] The usage string for the command
 	 * @property {?string} [usageDelim=undefined] The string to delimit the command input for usage
@@ -47,12 +49,6 @@ class Command extends Piece {
 
 		this.name = this.name.toLowerCase();
 
-		/**
-		 * The aliases for this command
-		 * @since 0.0.1
-		 * @type {string[]}
-		 */
-		this.aliases = options.aliases;
 		if (options.autoAliases) {
 			if (this.name.includes('-')) this.aliases.push(this.name.replace(/-/g, ''));
 			for (const alias of this.aliases) if (alias.includes('-')) this.aliases.push(alias.replace(/-/g, ''));
@@ -63,21 +59,8 @@ class Command extends Piece {
 		 * @since 0.0.1
 		 * @type {external:Permissions}
 		 */
-		this.botPerms = new Permissions(options.botPerms).freeze();
+		this.requiredPermissions = new Permissions(options.requiredPermissions).freeze();
 
-		/**
-		 * The number of times this command can be run before ratelimited by the cooldown
-		 * @since 0.5.0
-		 * @type {number}
-		 */
-		this.bucket = options.bucket;
-
-		/**
-		 * The cooldown in seconds this command has
-		 * @since 0.0.1
-		 * @type {number}
-		 */
-		this.cooldown = options.cooldown;
 
 		/**
 		 * Whether this command should have it's responses deleted if the triggering message is deleted
@@ -90,19 +73,23 @@ class Command extends Piece {
 		 * The description of the command
 		 * @since 0.0.1
 		 * @type {(string|Function)}
-		 * @param {KlasaMessage} msg The message used to trigger this command
+		 * @param {Language} language The language for the description
 		 * @returns {string}
 		 */
-		this.description = options.description;
+		this.description = isFunction(options.description) ?
+			(language = this.client.languages.default) => options.description(language) :
+			options.description;
 
 		/**
 		 * The extended help for the command
 		 * @since 0.0.1
 		 * @type {(string|Function)}
-		 * @param {KlasaMessage} msg The message used to trigger this command
+		 * @param {Language} language The language for the extended help
 		 * @returns {string}
 		 */
-		this.extendedHelp = options.extendedHelp || (msg => msg.language.get('COMMAND_HELP_NO_EXTENDED'));
+		this.extendedHelp = isFunction(options.extendedHelp) ?
+			(language = this.client.languages.default) => options.extendedHelp(language) :
+			options.extendedHelp;
 
 		/**
 		 * The full category for the command
@@ -126,11 +113,11 @@ class Command extends Piece {
 		this.nsfw = options.nsfw;
 
 		/**
-		 * The required permLevel to run this command
+		 * The required permissionLevel to run this command
 		 * @since 0.0.1
 		 * @type {number}
 		 */
-		this.permLevel = options.permLevel;
+		this.permissionLevel = options.permissionLevel;
 
 		/**
 		 * The number or attempts allowed for re-prompting an argument
@@ -154,12 +141,11 @@ class Command extends Piece {
 		this.quotedStringSupport = options.quotedStringSupport;
 
 		/**
-		 * The required per guild configs to run this command
+		 * The required per guild settings to run this command
 		 * @since 0.0.1
 		 * @type {string[]}
 		 */
-		this.requiredConfigs = options.requiredConfigs;
-
+		this.requiredSettings = options.requiredSettings;
 
 		/**
 		 * What channels the command should run in
@@ -169,7 +155,7 @@ class Command extends Piece {
 		this.runIn = options.runIn;
 
 		/**
-		 * Whether to enable sub commands or not
+		 * Whether to enable subcommands or not
 		 * @since 0.5.0
 		 * @type {boolean}
 		 */
@@ -183,12 +169,40 @@ class Command extends Piece {
 		this.usage = new CommandUsage(client, options.usage, options.usageDelim, this);
 
 		/**
+		 * The level at which cooldowns should apply
+		 * @since 0.5.0
+		 * @type {string}
+		 */
+		this.cooldownLevel = options.cooldownLevel;
+
+		if (!['author', 'channel', 'guild'].includes(this.cooldownLevel)) throw new Error('Invalid cooldownLevel');
+
+		/**
 		 * Any active cooldowns for the command
 		 * @since 0.0.1
-		 * @type {Map<string, number>}
+		 * @type {RateLimitManager}
 		 * @private
 		 */
-		this.cooldowns = new Map();
+		this.cooldowns = new RateLimitManager(options.bucket, options.cooldown * 1000);
+	}
+
+	/**
+	 * The number of times this command can be run before ratelimited by the cooldown
+	 * @since 0.5.0
+	 * @type {number}
+	 * @readonly
+	 */
+	get bucket() {
+		return this.cooldowns.bucket;
+	}
+	/**
+	 * The cooldown in seconds this command has
+	 * @since 0.0.1
+	 * @type {number}
+	 * @readonly
+	 */
+	get cooldown() {
+		return this.cooldowns.cooldown / 1000;
 	}
 
 	/**
@@ -266,8 +280,8 @@ class Command extends Piece {
 	 * this.customizeResponse('targetUser', 'You did not give me a user...');
 	 *
 	 * // Or also using functions to have multilingual support:
-	 * this.customizeResponse('targetUser', (msg) =>
-	 *     msg.language.get('COMMAND_REQUIRED_USER_FRIENDLY'));
+	 * this.customizeResponse('targetUser', (message) =>
+	 *     message.language.get('COMMAND_REQUIRED_USER_FRIENDLY'));
 	 */
 	customizeResponse(name, response) {
 		this.usage.customizeResponse(name, response);
@@ -277,14 +291,14 @@ class Command extends Piece {
 	/**
 	 * The run method to be overwritten in actual commands
 	 * @since 0.0.1
-	 * @param {KlasaMessage} msg The command message mapped on top of the message used to trigger this command
+	 * @param {KlasaMessage} message The command message mapped on top of the message used to trigger this command
 	 * @param {any[]} params The fully resolved parameters based on your usage / usageDelim
 	 * @returns {KlasaMessage|KlasaMessage[]} You should return the response message whenever possible
 	 * @abstract
 	 */
-	async run(msg) {
+	async run() {
 		// Defined in extension Classes
-		return msg;
+		throw new Error(`The run method has not been implemented by ${this.type}:${this.name}.`);
 	}
 
 	/**
@@ -294,22 +308,21 @@ class Command extends Piece {
 	toJSON() {
 		return {
 			...super.toJSON(),
-			aliases: this.aliases.slice(0),
-			botPerms: this.botPerms.toArray(false),
+			requiredPermissions: this.requiredPermissions.toArray(false),
 			bucket: this.bucket,
 			category: this.category,
 			cooldown: this.cooldown,
 			deletable: this.deletable,
-			description: typeof this.description === 'function' ? this.description({ language: this.client.languages.default }) : this.description,
-			extendedHelp: typeof this.extendedHelp === 'function' ? this.extendedHelp({ language: this.client.languages.default }) : this.extendedHelp,
+			description: isFunction(this.description) ? this.description() : this.description,
+			extendedHelp: isFunction(this.extendedHelp) ? this.extendedHelp() : this.extendedHelp,
 			fullCategory: this.fullCategory,
 			guarded: this.guarded,
 			nsfw: this.nsfw,
-			permLevel: this.permLevel,
+			permissionLevel: this.permissionLevel,
 			promptLimit: this.promptLimit,
 			promptTime: this.promptTime,
 			quotedStringSupport: this.quotedStringSupport,
-			requiredConfigs: this.requiredConfigs.slice(0),
+			requiredSettings: this.requiredSettings.slice(0),
 			runIn: this.runIn.slice(0),
 			subCategory: this.subCategory,
 			subcommands: this.subcommands,

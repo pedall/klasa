@@ -91,12 +91,12 @@ class Usage {
 	/**
 	 * Creates a TextPrompt instance to collect and resolve arguments with.
 	 * @since 0.5.0
-	 * @param {KlasaMessage} msg The message context from the prompt
+	 * @param {KlasaMessage} message The message context from the prompt
 	 * @param {TextPromptOptions} [options] The options for the prompt
 	 * @returns {TextPrompt}
 	 */
-	createPrompt(msg, options = {}) {
-		return new TextPrompt(msg, this, options);
+	createPrompt(message, options = {}) {
+		return new TextPrompt(message, this, options);
 	}
 
 	/**
@@ -153,9 +153,9 @@ class Usage {
 				continue;
 			}
 
-			if (open.includes(char)) Usage.tagOpen(usage, char);
-			else if (close.includes(char)) Usage.tagClose(usage, char);
-			else if (space.includes(char)) Usage.tagSpace(usage, char);
+			if (open.includes(char)) this.tagOpen(usage, char);
+			else if (close.includes(char)) this.tagClose(usage, char);
+			else if (space.includes(char)) this.tagSpace(usage, char);
 			else usage.current += char;
 		}
 

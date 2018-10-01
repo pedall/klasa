@@ -1,19 +1,23 @@
 declare module 'klasa' {
 
+	import { ExecOptions } from 'child_process';
+
 	import {
 		BufferResolvable,
+		CategoryChannel as DiscordCategoryChannel,
 		Channel,
 		Client,
 		ClientApplication,
 		ClientOptions,
 		ClientUser,
-		ClientUserGuildSettings,
-		ClientUserSettings,
 		Collection,
 		DMChannel as DiscordDMChannel,
 		Emoji,
+		EmojiResolvable,
 		GroupDMChannel as DiscordGroupDMChannel,
 		Guild as DiscordGuild,
+		GuildChannel as DiscordGuildChannel,
+		GuildEmoji,
 		GuildMember,
 		Message as DiscordMessage,
 		MessageAttachment,
@@ -21,15 +25,20 @@ declare module 'klasa' {
 		MessageEmbed,
 		MessageOptions,
 		MessageReaction,
+		PermissionResolvable,
+		Permissions,
+		Presence,
+		RateLimitData,
 		ReactionCollector,
 		Role,
 		Snowflake,
+		Speaking,
 		StringResolvable,
+		TextChannel as DiscordTextChannel,
 		User as DiscordUser,
 		UserResolvable,
-		TextChannel as DiscordTextChannel,
 		VoiceChannel as DiscordVoiceChannel,
-		CategoryChannel as DiscordCategoryChannel,
+		VoiceState,
 		WebhookClient
 	} from 'discord.js';
 
@@ -38,12 +47,13 @@ declare module 'klasa' {
 //#region Classes
 
 	export class KlasaClient extends Client {
-		public constructor(options?: KlasaClientOptions & ClientOptions);
-		public options: KlasaClientOptions & ClientOptions;
-		public coreBaseDir: string;
-		public clientBaseDir: string;
+		public constructor(options?: KlasaClientOptions);
+		public readonly invite: string;
+		public readonly owner: KlasaUser | null;
+		public options: KlasaClientOptions;
+		public userBaseDirectory: string;
 		public console: KlasaConsole;
-		public argResolver: ArgResolver;
+		public arguments: ArgumentStore;
 		public commands: CommandStore;
 		public inhibitors: InhibitorStore;
 		public finalizers: FinalizerStore;
@@ -51,91 +61,80 @@ declare module 'klasa' {
 		public languages: LanguageStore;
 		public providers: ProviderStore;
 		public tasks: TaskStore;
+		public serializers: SerializerStore;
 		public events: EventStore;
 		public extendables: ExtendableStore;
 		public pieceStores: Collection<string, any>;
 		public permissionLevels: PermissionLevels;
-		public sharded: boolean;
-		public methods: {
-			Collection: typeof Collection;
-			Embed: typeof MessageEmbed;
-			KlasaMessage: typeof KlasaMessage;
-			MessageCollector: typeof MessageCollector;
-			Webhook: typeof WebhookClient;
-			util: typeof Util;
-		};
 		public gateways: GatewayDriver;
-		public configs?: Configuration;
+		public settings: Settings | null;
 		public application: ClientApplication;
 		public schedule: Schedule;
 		public ready: boolean;
 
-		public readonly invite: string;
-		public readonly owner?: KlasaUser;
 		public validatePermissionLevels(): PermissionLevels;
-		public registerStore<K, V>(store: Store<K, V>): KlasaClient;
-		public unregisterStore<K, V>(store: Store<K, V>): KlasaClient;
+		public registerStore<K, V extends Piece>(store: Store<K, V>): KlasaClient;
+		public unregisterStore<K, V extends Piece>(store: Store<K, V>): KlasaClient;
 
-		public registerPiece<K, V>(pieceName: string, store: Store<K, V>): KlasaClient;
-		public unregisterPiece(pieceName: string): KlasaClient;
-
-		public login(token: string): Promise<string>;
+		public login(token?: string): Promise<string>;
 		private _ready(): Promise<void>;
 
 		public sweepMessages(lifetime?: number, commandLifeTime?: number): number;
+		public static defaultGuildSchema: Schema;
+		public static defaultUserSchema: Schema;
+		public static defaultClientSchema: Schema;
 		public static defaultPermissionLevels: PermissionLevels;
+		public static plugin: symbol;
+		public static use(mod: any): KlasaClient;
 
 		// Discord.js events
-		public on(event: string, listener: Function): this;
 		public on(event: 'channelCreate' | 'channelDelete', listener: (channel: Channel) => void): this;
 		public on(event: 'channelPinsUpdate', listener: (channel: Channel, time: Date) => void): this;
 		public on(event: 'channelUpdate', listener: (oldChannel: Channel, newChannel: Channel) => void): this;
-		public on(event: 'clientUserGuildSettingsUpdate', listener: (clientUserGuildSettings: ClientUserGuildSettings) => void): this;
-		public on(event: 'clientUserGuildSettingsUpdate', listener: (clientUserGuildSettings: ClientUserGuildSettings) => void): this;
-		public on(event: 'clientUserSettingsUpdate', listener: (clientUserSettings: ClientUserSettings) => void): this;
 		public on(event: 'debug' | 'warn', listener: (info: string) => void): this;
 		public on(event: 'disconnect', listener: (event: any) => void): this;
-		public on(event: 'emojiCreate | emojiDelete', listener: (emoji: Emoji) => void): this;
-		public on(event: 'emojiUpdate', listener: (oldEmoji: Emoji, newEmoji: Emoji) => void): this;
+		public on(event: 'emojiCreate' | 'emojiDelete', listener: (emoji: GuildEmoji) => void): this;
+		public on(event: 'emojiUpdate', listener: (oldEmoji: GuildEmoji, newEmoji: GuildEmoji) => void): this;
 		public on(event: 'error', listener: (error: Error) => void): this;
 		public on(event: 'guildBanAdd' | 'guildBanRemove', listener: (guild: KlasaGuild, user: KlasaUser) => void): this;
 		public on(event: 'guildCreate' | 'guildDelete' | 'guildUnavailable', listener: (guild: KlasaGuild) => void): this;
 		public on(event: 'guildMemberAdd' | 'guildMemberAvailable' | 'guildMemberRemove', listener: (member: GuildMember) => void): this;
-		public on(event: 'guildMembersChunk', listener: (members: GuildMember[], guild: KlasaGuild) => void): this;
-		public on(event: 'guildMemberSpeaking', listener: (member: GuildMember, speaking: boolean) => void): this;
-		public on(event: 'guildMemberUpdate' | 'presenceUpdate' | 'voiceStateUpdate', listener: (oldMember: GuildMember, newMember: GuildMember) => void): this;
+		public on(event: 'guildMembersChunk', listener: (members: Collection<Snowflake, GuildMember>, guild: KlasaGuild) => void): this;
+		public on(event: 'guildMemberSpeaking', listener: (member: GuildMember, speaking: Readonly<Speaking>) => void): this;
+		public on(event: 'guildMemberUpdate', listener: (oldMember: GuildMember, newMember: GuildMember) => void): this;
 		public on(event: 'guildUpdate', listener: (oldGuild: KlasaGuild, newGuild: KlasaGuild) => void): this;
+		public on(event: 'guildIntegrationsUpdate', listener: (guild: KlasaGuild) => void): this;
 		public on(event: 'message' | 'messageDelete' | 'messageReactionRemoveAll', listener: (message: KlasaMessage) => void): this;
 		public on(event: 'messageDeleteBulk', listener: (messages: Collection<Snowflake, KlasaMessage>) => void): this;
 		public on(event: 'messageReactionAdd' | 'messageReactionRemove', listener: (messageReaction: MessageReaction, user: KlasaUser) => void): this;
 		public on(event: 'messageUpdate', listener: (oldMessage: KlasaMessage, newMessage: KlasaMessage) => void): this;
-		public on(event: 'ready' | 'reconnecting' | 'resume', listener: () => void): this;
+		public on(event: 'presenceUpdate', listener: (oldPresence: Presence | undefined, newPresence: Presence) => void): this;
+		public on(event: 'rateLimit', listener: (rateLimitData: RateLimitData) => void): this;
+		public on(event: 'ready' | 'reconnecting', listener: () => void): this;
+		public on(event: 'resumed', listener: (replayed: number) => void): this;
 		public on(event: 'roleCreate' | 'roleDelete', listener: (role: Role) => void): this;
 		public on(event: 'roleUpdate', listener: (oldRole: Role, newRole: Role) => void): this;
 		public on(event: 'typingStart' | 'typingStop', listener: (channel: Channel, user: KlasaUser) => void): this;
-		public on(event: 'userNoteUpdate', listener: (user: UserResolvable, oldNote: string, newNote: string) => void): this;
 		public on(event: 'userUpdate', listener: (oldUser: KlasaUser, newUser: KlasaUser) => void): this;
+		public on(event: 'voiceStateUpdate', listener: (oldState: VoiceState, newState: VoiceState) => void): this;
+		public on(event: 'webhookUpdate', listener: (channel: KlasaTextChannel) => void): this;
+		public on(event: string, listener: Function): this;
 
 		// Klasa Command Events
-		public on(event: 'commandError', listener: (msg: KlasaMessage, command: Command, params: any[], error: Error) => void): this;
-		public on(event: 'commandInhibited', listener: (msg: KlasaMessage, command: Command, response: string | Error) => void): this;
-		public on(event: 'commandRun', listener: (msg: KlasaMessage, command: Command, params: any[], response: any) => void): this;
-		public on(event: 'commandSuccess', listener: (msg: KlasaMessage, command: Command, params: any[], response: any) => void): this;
-		public on(event: 'commandUnknown', listener: (msg: KlasaMessage, command: string) => void): this;
+		public on(event: 'commandError', listener: (message: KlasaMessage, command: Command, params: any[], error: Error) => void): this;
+		public on(event: 'commandInhibited', listener: (message: KlasaMessage, command: Command, response: string | Error) => void): this;
+		public on(event: 'commandRun', listener: (message: KlasaMessage, command: Command, params: any[], response: any) => void): this;
+		public on(event: 'commandSuccess', listener: (message: KlasaMessage, command: Command, params: any[], response: any) => void): this;
+		public on(event: 'commandUnknown', listener: (message: KlasaMessage, command: string) => void): this;
 
-		public on(event: 'monitorError', listener: (msg: KlasaMessage, monitor: Monitor, error: Error | string) => void): this;
-		public on(event: 'finalizerError', listener: (msg: KlasaMessage, mes: KlasaMessage, timer: Timestamp, finalizer: Finalizer, error: Error | string) => void): this;
+		public on(event: 'monitorError', listener: (message: KlasaMessage, monitor: Monitor, error: Error | string) => void): this;
+		public on(event: 'finalizerError', listener: (message: KlasaMessage, response: KlasaMessage, runTime: Timestamp, finalizer: Finalizer, error: Error | string) => void): this;
 		public on(event: 'taskError', listener: (scheduledTask: ScheduledTask, task: Task, error: Error) => void): this;
 
 		// SettingGateway Events
-		public on(event: 'configCreateEntry', listener: (entry: Configuration) => void): this;
-		public on(event: 'configDeleteEntry', listener: (entry: Configuration) => void): this;
-		public on(event: 'configUpdateEntry', listener: (oldEntry: Configuration, newEntry: Configuration, path: string[]) => void): this;
-
-		// Schema Events
-		public on(event: 'schemaKeyAdd', listener: (key: SchemaFolder | SchemaPiece) => void): this;
-		public on(event: 'schemaKeyRemove', listener: (key: SchemaFolder | SchemaPiece) => void): this;
-		public on(event: 'schemaKeyUpdate', listener: (key: SchemaPiece) => void): this;
+		public on(event: 'settingsCreateEntry', listener: (entry: Settings) => void): this;
+		public on(event: 'settingsDeleteEntry', listener: (entry: Settings) => void): this;
+		public on(event: 'settingsUpdateEntry', listener: (oldEntry: Settings, newEntry: Settings, path: string[]) => void): this;
 
 		// Klasa Console Custom Events
 		public on(event: 'log', listener: (data: any) => void): this;
@@ -150,56 +149,53 @@ declare module 'klasa' {
 		public on(event: 'pieceUnloaded', listener: (piece: Piece) => void): this;
 
 		// Discord.js events
-		public once(event: string, listener: Function): this;
 		public once(event: 'channelCreate' | 'channelDelete', listener: (channel: Channel) => void): this;
 		public once(event: 'channelPinsUpdate', listener: (channel: Channel, time: Date) => void): this;
 		public once(event: 'channelUpdate', listener: (oldChannel: Channel, newChannel: Channel) => void): this;
-		public once(event: 'clientUserGuildSettingsUpdate', listener: (clientUserGuildSettings: ClientUserGuildSettings) => void): this;
-		public once(event: 'clientUserGuildSettingsUpdate', listener: (clientUserGuildSettings: ClientUserGuildSettings) => void): this;
-		public once(event: 'clientUserSettingsUpdate', listener: (clientUserSettings: ClientUserSettings) => void): this;
 		public once(event: 'debug' | 'warn', listener: (info: string) => void): this;
 		public once(event: 'disconnect', listener: (event: any) => void): this;
-		public once(event: 'emojiCreate | emojiDelete', listener: (emoji: Emoji) => void): this;
-		public once(event: 'emojiUpdate', listener: (oldEmoji: Emoji, newEmoji: Emoji) => void): this;
+		public once(event: 'emojiCreate' | 'emojiDelete', listener: (emoji: GuildEmoji) => void): this;
+		public once(event: 'emojiUpdate', listener: (oldEmoji: GuildEmoji, newEmoji: GuildEmoji) => void): this;
 		public once(event: 'error', listener: (error: Error) => void): this;
 		public once(event: 'guildBanAdd' | 'guildBanRemove', listener: (guild: KlasaGuild, user: KlasaUser) => void): this;
 		public once(event: 'guildCreate' | 'guildDelete' | 'guildUnavailable', listener: (guild: KlasaGuild) => void): this;
 		public once(event: 'guildMemberAdd' | 'guildMemberAvailable' | 'guildMemberRemove', listener: (member: GuildMember) => void): this;
-		public once(event: 'guildMembersChunk', listener: (members: GuildMember[], guild: KlasaGuild) => void): this;
-		public once(event: 'guildMemberSpeaking', listener: (member: GuildMember, speaking: boolean) => void): this;
-		public once(event: 'guildMemberUpdate' | 'presenceUpdate' | 'voiceStateUpdate', listener: (oldMember: GuildMember, newMember: GuildMember) => void): this;
+		public once(event: 'guildMembersChunk', listener: (members: Collection<Snowflake, GuildMember>, guild: KlasaGuild) => void): this;
+		public once(event: 'guildMemberSpeaking', listener: (member: GuildMember, speaking: Readonly<Speaking>) => void): this;
+		public once(event: 'guildMemberUpdate', listener: (oldMember: GuildMember, newMember: GuildMember) => void): this;
 		public once(event: 'guildUpdate', listener: (oldGuild: KlasaGuild, newGuild: KlasaGuild) => void): this;
+		public once(event: 'guildIntegrationsUpdate', listener: (guild: KlasaGuild) => void): this;
 		public once(event: 'message' | 'messageDelete' | 'messageReactionRemoveAll', listener: (message: KlasaMessage) => void): this;
 		public once(event: 'messageDeleteBulk', listener: (messages: Collection<Snowflake, KlasaMessage>) => void): this;
 		public once(event: 'messageReactionAdd' | 'messageReactionRemove', listener: (messageReaction: MessageReaction, user: KlasaUser) => void): this;
 		public once(event: 'messageUpdate', listener: (oldMessage: KlasaMessage, newMessage: KlasaMessage) => void): this;
-		public once(event: 'ready' | 'reconnecting' | 'resume', listener: () => void): this;
+		public once(event: 'presenceUpdate', listener: (oldPresence: Presence | undefined, newPresence: Presence) => void): this;
+		public once(event: 'rateLimit', listener: (rateLimitData: RateLimitData) => void): this;
+		public once(event: 'ready' | 'reconnecting', listener: () => void): this;
+		public once(event: 'resumed', listener: (replayed: number) => void): this;
 		public once(event: 'roleCreate' | 'roleDelete', listener: (role: Role) => void): this;
 		public once(event: 'roleUpdate', listener: (oldRole: Role, newRole: Role) => void): this;
 		public once(event: 'typingStart' | 'typingStop', listener: (channel: Channel, user: KlasaUser) => void): this;
-		public once(event: 'userNoteUpdate', listener: (user: UserResolvable, oldNote: string, newNote: string) => void): this;
 		public once(event: 'userUpdate', listener: (oldUser: KlasaUser, newUser: KlasaUser) => void): this;
+		public once(event: 'voiceStateUpdate', listener: (oldState: VoiceState, newState: VoiceState) => void): this;
+		public once(event: 'webhookUpdate', listener: (channel: KlasaTextChannel) => void): this;
+		public once(event: string, listener: Function): this;
 
 		// Klasa Command Events
-		public once(event: 'commandError', listener: (msg: KlasaMessage, command: Command, params: any[], error: Error) => void): this;
-		public once(event: 'commandInhibited', listener: (msg: KlasaMessage, command: Command, response: string | Error) => void): this;
-		public once(event: 'commandRun', listener: (msg: KlasaMessage, command: Command, params: any[], response: any) => void): this;
-		public once(event: 'commandSuccess', listener: (msg: KlasaMessage, command: Command, params: any[], response: any) => void): this;
-		public once(event: 'commandUnknown', listener: (msg: KlasaMessage, command: string) => void): this;
+		public once(event: 'commandError', listener: (message: KlasaMessage, command: Command, params: any[], error: Error) => void): this;
+		public once(event: 'commandInhibited', listener: (message: KlasaMessage, command: Command, response: string | Error) => void): this;
+		public once(event: 'commandRun', listener: (message: KlasaMessage, command: Command, params: any[], response: any) => void): this;
+		public once(event: 'commandSuccess', listener: (message: KlasaMessage, command: Command, params: any[], response: any) => void): this;
+		public once(event: 'commandUnknown', listener: (message: KlasaMessage, command: string) => void): this;
 
-		public once(event: 'monitorError', listener: (msg: KlasaMessage, monitor: Monitor, error: Error | string) => void): this;
-		public once(event: 'finalizerError', listener: (msg: KlasaMessage, mes: KlasaMessage, timer: Timestamp, finalizer: Finalizer, error: Error | string) => void): this;
+		public once(event: 'monitorError', listener: (message: KlasaMessage, monitor: Monitor, error: Error | string) => void): this;
+		public once(event: 'finalizerError', listener: (message: KlasaMessage, response: KlasaMessage, runTime: Timestamp, finalizer: Finalizer, error: Error | string) => void): this;
 		public once(event: 'taskError', listener: (scheduledTask: ScheduledTask, task: Task, error: Error) => void): this;
 
 		// SettingGateway Events
-		public once(event: 'configCreateEntry', listener: (entry: Configuration) => void): this;
-		public once(event: 'configDeleteEntry', listener: (entry: Configuration) => void): this;
-		public once(event: 'configUpdateEntry', listener: (oldEntry: Configuration, newEntry: Configuration, path?: string) => void): this;
-
-		// Schema Events
-		public once(event: 'schemaKeyAdd', listener: (key: SchemaFolder | SchemaPiece) => void): this;
-		public once(event: 'schemaKeyRemove', listener: (key: SchemaFolder | SchemaPiece) => void): this;
-		public once(event: 'schemaKeyUpdate', listener: (key: SchemaPiece) => void): this;
+		public once(event: 'settingsCreateEntry', listener: (entry: Settings) => void): this;
+		public once(event: 'settingsDeleteEntry', listener: (entry: Settings) => void): this;
+		public once(event: 'settingsUpdateEntry', listener: (oldEntry: Settings, newEntry: Settings, path?: string) => void): this;
 
 		// Klasa Console Custom Events
 		public once(event: 'log', listener: (data: any) => void): this;
@@ -219,44 +215,49 @@ declare module 'klasa' {
 //#region Extensions
 
 	export class KlasaGuild extends DiscordGuild {
-		public configs: Configuration;
-		public readonly language?: Language;
+		public settings: Settings;
+		public readonly language: Language;
 	}
 
 	export class KlasaMessage extends DiscordMessage {
 		public readonly guild: KlasaGuild;
-		public guildConfigs: Configuration;
+		public guildSettings: Settings;
 		public language: Language;
-		public command?: Command;
-		public prefix?: RegExp;
-		public prefixLength?: number;
-		private prompter?: CommandPrompt;
-		private _responses: Snowflake[];
+		public command: Command | null;
+		public prefix: RegExp | null;
+		public prefixLength: number | null;
+		public author: KlasaUser;
+		private levelID: Snowflake | null;
+		private prompter: CommandPrompt | null;
+		private _responses: KlasaMessage[];
 
 		public readonly responses: KlasaMessage[];
 		public readonly args: string[];
 		public readonly params: any[];
-		public readonly flags: object;
+		public readonly flags: ObjectLiteral<string>;
 		public readonly reprompted: boolean;
 		public readonly reactable: boolean;
 		public prompt(text: string, time?: number): Promise<KlasaMessage>;
 		public usableCommands(): Promise<Collection<string, Command>>;
 		public hasAtLeastPermissionLevel(min: number): Promise<boolean>;
 
+		public sendLocale(key: string, options?: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
+		public sendLocale(key: string, localeArgs?: Array<any>, options?: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
 		public sendMessage(content?: StringResolvable, options?: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
 		public sendEmbed(embed: MessageEmbed, content?: StringResolvable, options?: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
-		public sendCode(lang: string, content: StringResolvable, options?: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
+		public sendCode(language: string, content: StringResolvable, options?: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
 		public send(content?: StringResolvable, options?: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
 
 		private _patch(data: any): void;
-		private _registerCommand(commandInfo: { command: Command, prefix: RegExp, prefixLength: number }): void;
-		private static combineContentOptions(content?: StringResolvable, options?: MessageOptions): MessageOptions;
+		private _registerCommand(commandInfo: { command: Command, prefix: RegExp, prefixLength: number }): this;
 	}
 
 	export class KlasaUser extends DiscordUser {
-		public configs: Configuration;
+		public settings: Settings;
 		public send(content?: StringResolvable, options?: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
 		public send(options: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
+		public sendLocale(key: string, options?: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
+		public sendLocale(key: string, localeArgs?: Array<any>, options?: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
 		public sendCode(lang: string, content: StringResolvable, options?: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
 		public sendEmbed(embed: MessageEmbed, content?: string, options?: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
 		public sendEmbed(embed: MessageEmbed, options?: MessageOptions): Promise<KlasaMessage>;
@@ -273,6 +274,8 @@ declare module 'klasa' {
 		public readonly guild: KlasaGuild;
 		public send(content?: StringResolvable, options?: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
 		public send(options: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
+		public sendLocale(key: string, options?: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
+		public sendLocale(key: string, localeArgs?: Array<any>, options?: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
 		public sendCode(lang: string, content: StringResolvable, options?: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
 		public sendEmbed(embed: MessageEmbed, content?: string, options?: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
 		public sendEmbed(embed: MessageEmbed, options?: MessageOptions): Promise<KlasaMessage>;
@@ -280,6 +283,10 @@ declare module 'klasa' {
 		public sendFiles(attachments: MessageAttachment[], content: StringResolvable, options?: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
 		public sendMessage(content?: string, options?: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
 		public sendMessage(options: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
+	}
+
+	export class KlasaGuildChannel extends DiscordGuildChannel {
+		public readonly guild: KlasaGuild;
 	}
 
 	export class KlasaVoiceChannel extends DiscordVoiceChannel {
@@ -296,6 +303,8 @@ declare module 'klasa' {
 		public readonly postable: boolean;
 		public send(content?: StringResolvable, options?: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
 		public send(options: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
+		public sendLocale(key: string, options?: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
+		public sendLocale(key: string, localeArgs?: Array<any>, options?: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
 		public sendCode(lang: string, content: StringResolvable, options?: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
 		public sendEmbed(embed: MessageEmbed, content?: string, options?: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
 		public sendEmbed(embed: MessageEmbed, options?: MessageOptions): Promise<KlasaMessage>;
@@ -311,6 +320,8 @@ declare module 'klasa' {
 		public readonly postable: boolean;
 		public send(content?: StringResolvable, options?: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
 		public send(options: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
+		public sendLocale(key: string, options?: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
+		public sendLocale(key: string, localeArgs?: Array<any>, options?: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
 		public sendCode(lang: string, content: StringResolvable, options?: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
 		public sendEmbed(embed: MessageEmbed, content?: string, options?: MessageOptions): Promise<KlasaMessage | KlasaMessage[]>;
 		public sendEmbed(embed: MessageEmbed, options?: MessageOptions): Promise<KlasaMessage>;
@@ -324,73 +335,6 @@ declare module 'klasa' {
 
 //#region Parsers
 
-	export class ArgResolver extends Resolver {
-
-		public custom(arg: string, possible: Possible, msg: KlasaMessage, custom: ArgResolverCustomMethod): Promise<any>;
-		public piece(arg: string, possible: Possible, msg: KlasaMessage): Promise<Piece>;
-		public store<K, V>(arg: string, possible: Possible, msg: KlasaMessage): Promise<Store<K, V>>;
-
-		public cmd(arg: string, possible: Possible, msg: KlasaMessage): Promise<Command>;
-		public command(arg: string, possible: Possible, msg: KlasaMessage): Promise<Command>;
-		public event(arg: string, possible: Possible, msg: KlasaMessage): Promise<Event>;
-		public extendable(arg: string, possible: Possible, msg: KlasaMessage): Promise<Extendable>;
-		public finalizer(arg: string, possible: Possible, msg: KlasaMessage): Promise<Finalizer>;
-		public inhibitor(arg: string, possible: Possible, msg: KlasaMessage): Promise<Inhibitor>;
-		public language(arg: string, possible: Possible, msg: KlasaMessage): Promise<Language>;
-		public monitor(arg: string, possible: Possible, msg: KlasaMessage): Promise<Monitor>;
-		public provider(arg: string, possible: Possible, msg: KlasaMessage): Promise<Provider>;
-		public task(arg: string, possible: Possible, msg: KlasaMessage): Promise<Task>;
-
-		public message(arg: string, possible: Possible, msg: KlasaMessage): Promise<KlasaMessage>;
-		public msg(arg: string, possible: Possible, msg: KlasaMessage): Promise<KlasaMessage>;
-		public mention(arg: string, possible: Possible, msg: KlasaMessage): Promise<KlasaUser>;
-		public user(arg: string, possible: Possible, msg: KlasaMessage): Promise<KlasaUser>;
-		public member(arg: string, possible: Possible, msg: KlasaMessage): Promise<GuildMember>;
-		public channel(arg: string, possible: Possible, msg: KlasaMessage): Promise<Channel>;
-		public emoji(arg: string, possible: Possible, msg: KlasaMessage): Promise<Emoji>;
-		public guild(arg: string, possible: Possible, msg: KlasaMessage): Promise<KlasaGuild>;
-		public role(arg: string, possible: Possible, msg: KlasaMessage): Promise<Role>;
-		public literal(arg: string, possible: Possible, msg: KlasaMessage): Promise<string>;
-		public boolean(arg: string, possible: Possible, msg: KlasaMessage): Promise<boolean>;
-		public bool(arg: string, possible: Possible, msg: KlasaMessage): Promise<boolean>;
-		public string(arg: string, possible: Possible, msg: KlasaMessage): Promise<string>;
-		public str(arg: string, possible: Possible, msg: KlasaMessage): Promise<string>;
-		public integer(arg: string, possible: Possible, msg: KlasaMessage): Promise<number>;
-		public int(arg: string, possible: Possible, msg: KlasaMessage): Promise<number>;
-		public num(arg: string, possible: Possible, msg: KlasaMessage): Promise<number>;
-		public number(arg: string, possible: Possible, msg: KlasaMessage): Promise<number>;
-		public float(arg: string, possible: Possible, msg: KlasaMessage): Promise<number>;
-		public reg(arg: string, possible: Possible, msg: KlasaMessage): Promise<RegExpExecArray>;
-		public regex(arg: string, possible: Possible, msg: KlasaMessage): Promise<RegExpExecArray>;
-		public regexp(arg: string, possible: Possible, msg: KlasaMessage): Promise<RegExpExecArray>;
-		public url(arg: string, possible: Possible, msg: KlasaMessage): Promise<string>;
-		public date(arg: string, possible: Possible, msg: KlasaMessage): Promise<Date>;
-		public duration(arg: string, possible: Possible, msg: KlasaMessage): Promise<Date>;
-		public time(arg: string, possible: Possible, msg: KlasaMessage): Promise<Date>;
-
-		// Overloads for TS retrocompatibility
-		public message(input: string | KlasaMessage, channel: Channel): Promise<KlasaMessage>;
-		public msg(input: string | KlasaMessage, channel: Channel): Promise<KlasaMessage>;
-		public mention(input: KlasaUser | GuildMember | KlasaMessage | Snowflake): Promise<KlasaUser>;
-		public user(input: KlasaUser | GuildMember | KlasaMessage | Snowflake): Promise<KlasaUser>;
-		public member(input: KlasaUser | GuildMember | Snowflake, guild: KlasaGuild): Promise<GuildMember>;
-		public channel(input: Channel | Snowflake): Promise<Channel>;
-		public guild(input: KlasaGuild | Snowflake): Promise<KlasaGuild>;
-		public role(input: Role | Snowflake, guild: KlasaGuild): Promise<Role>;
-		public boolean(input: boolean | string): Promise<boolean>;
-		public bool(input: boolean | string): Promise<boolean>;
-		public string(input: string): Promise<string>;
-		public str(input: string): Promise<string>;
-		public integer(input: string | number): Promise<number>;
-		public int(input: string | number): Promise<number>;
-		public num(input: string | number): Promise<number>;
-		public number(input: string | number): Promise<number>;
-		public float(input: string | number): Promise<number>;
-		public url(input: string): Promise<string>;
-
-		private static minOrMax(client: KlasaClient, value: number, min: number, max: number, possible: Possible, msg: KlasaMessage, suffix: string): boolean;
-	}
-
 	export class Resolver {
 		public constructor(client: KlasaClient);
 		public readonly client: KlasaClient;
@@ -401,7 +345,7 @@ declare module 'klasa' {
 		public guild(input: KlasaGuild | Snowflake): Promise<KlasaGuild>;
 		public integer(input: string | number): Promise<number>;
 		public member(input: KlasaUser | GuildMember | Snowflake, guild: KlasaGuild): Promise<GuildMember>;
-		public msg(input: KlasaMessage | Snowflake, channel: Channel): Promise<KlasaMessage>;
+		public message(input: KlasaMessage | Snowflake, channel: Channel): Promise<KlasaMessage>;
 		public role(input: Role | Snowflake, guild: KlasaGuild): Promise<Role>;
 		public string(input: string): Promise<string>;
 		public url(input: string): Promise<string>;
@@ -451,13 +395,13 @@ declare module 'klasa' {
 	export class PermissionLevels extends Collection<number, PermissionLevel> {
 		public constructor(levels?: number);
 
-		public add(level: number, check: (client: KlasaClient, msg: KlasaMessage) => boolean, options?: PermissionLevelOptions): this;
+		public add(level: number, check: (client: KlasaClient, message: KlasaMessage) => boolean, options?: PermissionLevelOptions): this;
 		public debug(): string;
 		public isValid(): boolean;
 		public remove(level: number): this;
 		public set(level: number, obj: PermissionLevelOptions | symbol): this;
 
-		public run(msg: KlasaMessage, min: number): PermissionLevelsData;
+		public run(message: KlasaMessage, min: number): PermissionLevelsData;
 	}
 
 //#endregion Permissions
@@ -476,6 +420,7 @@ declare module 'klasa' {
 		public execute(): Promise<void>;
 		public next(): ScheduledTask;
 		public create(taskName: string, time: Date | number | string, options: ScheduledTaskOptions): Promise<ScheduledTask>;
+		public get(id: string): ScheduledTask | void;
 		public delete(id: string): Promise<this>;
 		public clear(): Promise<void>;
 
@@ -492,10 +437,12 @@ declare module 'klasa' {
 		public readonly client: KlasaClient;
 		public readonly store: Schedule;
 		public taskName: string;
-		public recurring?: Cron;
-		public time?: Date;
+		public recurring: Cron | null;
+		public time: Date;
 		public id: string;
 		public data: any;
+
+		private running: boolean;
 
 		public readonly task?: Task;
 		public run(): Promise<this>;
@@ -512,255 +459,211 @@ declare module 'klasa' {
 
 //#region Settings
 
-	export class Configuration {
+	export class Settings {
 		public constructor(manager: Gateway, data: any);
 		public readonly client: KlasaClient;
 		public readonly gateway: Gateway;
 		public readonly id: string;
+		public readonly synchronizing: boolean;
 		private _existsInDB: boolean;
-		private _syncStatus?: Promise<object>;
 
-		public get(key: string): any;
-		public get<T>(key: string): T;
-		public clone(): Configuration;
-		public sync(): Promise<this>;
+		public get<T = any>(path: string | string[]): T;
+		public clone(): Settings;
+		public sync(force?: boolean): Promise<this>;
 		public destroy(): Promise<this>;
 
-		public reset(key?: string | string[], avoidUnconfigurable?: boolean): Promise<ConfigurationUpdateResult>;
-		public reset(key?: string | string[], guild?: KlasaGuild, avoidUnconfigurable?: boolean): Promise<ConfigurationUpdateResult>;
-		public update(key: object, guild?: GatewayGuildResolvable): Promise<ConfigurationUpdateResult>;
-		public update(key: string, value: any, guild?: GatewayGuildResolvable, options?: ConfigurationUpdateOptions): Promise<ConfigurationUpdateResult>;
-		public update(key: string[], value: any[], guild?: GatewayGuildResolvable, options?: ConfigurationUpdateOptions): Promise<ConfigurationUpdateResult>;
-		public list(msg: KlasaMessage, path: SchemaFolder | string): string;
-		public resolveString(msg: KlasaMessage, path: SchemaPiece | string): string;
+		public reset(key?: string | string[], options?: SettingsResetOptions): Promise<SettingsUpdateResult>;
+		public reset(key?: string | string[], guild?: KlasaGuild, options?: SettingsResetOptions): Promise<SettingsUpdateResult>;
+		public update(key: ObjectLiteral, options?: SettingsUpdateOptions): Promise<SettingsUpdateResult>;
+		public update(key: ObjectLiteral, guild?: GuildResolvable, options?: SettingsUpdateOptions): Promise<SettingsUpdateResult>;
+		public update(key: string, value: any, options?: SettingsUpdateOptions): Promise<SettingsUpdateResult>;
+		public update(key: string, value: any, guild?: GuildResolvable, options?: SettingsUpdateOptions): Promise<SettingsUpdateResult>;
+		public update(entries: Array<[string, any]>, options?: SettingsUpdateOptions): Promise<SettingsUpdateResult>;
+		public update(entries: Array<[string, any]>, guild?: GuildResolvable, options?: SettingsUpdateOptions): Promise<SettingsUpdateResult>;
+		public list(message: KlasaMessage, path: SchemaFolder | string): string;
+		public resolveString(message: KlasaMessage, path: SchemaPiece | string): string;
 
-		private _get(route: string | string[], piece?: boolean): object;
-		private _get<T>(route: string | string[], piece?: boolean): T;
-		private _save(data: ConfigurationUpdateResult): Promise<void>;
-		private _updateMany(object: any, guild?: GatewayGuildResolvable): Promise<ConfigurationUpdateResult>;
-		private _parseSingle(key: string, value: any, guild: KlasaGuild | null, options: ConfigurationUpdateOptions, list: ConfigurationUpdateResult): Promise<void>;
-		private _parseUpdateMany(cache: any, object: any, schema: SchemaFolder, guild: KlasaGuild, list: ConfigurationUpdateResult): void;
+		private _save(data: SettingsUpdateResult): Promise<void>;
 		private _setValueByPath(piece: SchemaPiece, parsedID: any): { updated: boolean, old: any };
-		private _patch(data: any): void;
+		private _patch(data: ObjectLiteral, instance?: object, schema?: SchemaFolder): void;
 
-		public toJSON(): object;
+		public toJSON<T extends ObjectLiteral>(): T;
 		public toString(): string;
-
-		private static _merge(data: any, folder: SchemaFolder | SchemaPiece): any;
-		private static _clone(data: any, schema: SchemaFolder): any;
-		private static _patch(inst: any, data: any, schema: SchemaFolder): void;
 	}
 
 	export class Gateway extends GatewayStorage {
-		private constructor(store: GatewayDriver, type: string, schema: object, options: GatewayOptions);
+		public constructor(store: GatewayDriver, type: string, schema: Schema, options: GatewayOptions);
 		public store: GatewayDriver;
-		public options: GatewayOptions;
-		public defaultSchema: object;
-		public readonly resolver: SettingResolver;
-		public readonly cache: Collection<string, Configuration>;
+		public syncQueue: Collection<string, Promise<Settings>>;
+		public readonly Settings: Settings;
+		private cache: Collection<string, { settings: Settings, [k: string]: any }>;
 
-		public getEntry(input: string, create?: boolean): object | Configuration;
-		public createEntry(input: string): Promise<Configuration>;
-		public insertEntry(id: string, data?: object): Configuration;
-		public deleteEntry(input: string): Promise<boolean>;
-		public sync(input?: object | string, download?: boolean): Promise<any>;
-		public getPath(key?: string, options?: GatewayGetPathOptions): GatewayGetPathResult | null;
+		public get(input: string | number, create?: boolean): Settings;
+		public sync(input: string): Promise<Settings>;
+		public sync(input?: string[]): Promise<Gateway>;
+	}
 
-		private init(download?: boolean): Promise<void>;
-		private _ready(): Promise<Array<Collection<string, Configuration>>>;
-		private _resolveGuild(guild: GatewayGuildResolvable): KlasaGuild;
-		private _shardSync(path: string[], data: any, action: 'add' | 'delete' | 'update', force: boolean): Promise<void>;
-
-		public toJSON(): GatewayJSON;
-		public toString(): string;
+	export class QueryBuilder {
+		public constructor(datatypes: ObjectLiteral<QueryBuilderDatatype>, options?: QueryBuilderOptions);
+		public get(type: string): QueryBuilderDatatype | null;
+		public parse(schemaPiece: SchemaPiece): string;
+		public parseValue(value: any, schemaPiece: SchemaPiece, datatype?: QueryBuilderDatatype): string;
+		private arrayResolver: (values: Array<any>, piece: SchemaPiece, resolver: Function) => string;
+		private formatDatatype: (name: string, datatype: string, def?: string) => string;
+		private readonly _datatypes: ObjectLiteral<QueryBuilderDatatype>;
 	}
 
 	export class GatewayDriver {
 		private constructor(client: KlasaClient);
 		public readonly client: KlasaClient;
-		public resolver: SettingResolver;
-		public types: Set<string>;
 		public keys: Set<string>;
 		public ready: boolean;
-		private _queue: Map<string, (() => Gateway)>;
-
-		public readonly guildsSchema: {
-			prefix: SchemaPieceJSON,
-			language: SchemaPieceJSON,
-			disableNaturalPrefix: SchemaPieceJSON,
-			disabledCommands: SchemaPieceJSON
-		};
-
-		public readonly clientStorageSchema: {
-			userBlacklist: SchemaPieceJSON,
-			guildBlacklist: SchemaPieceJSON,
-			schedules: SchemaPieceJSON
-		};
-
 		public guilds: Gateway;
 		public users: Gateway;
 		public clientStorage: Gateway;
+		private _queue: Array<(() => Gateway)>;
 
-		public register(name: string, schema?: object, options?: GatewayDriverAddOptions): this;
-		private _register(name: string, schema?: object, options?: GatewayDriverAddOptions): Gateway;
-		private _ready(): Promise<Array<Array<Collection<string, Configuration>>>>;
-		private _checkProvider(engine: string): string;
+		public [Symbol.iterator](): Iterator<[string, Gateway]>;
+		public register(name: string, options?: GatewayDriverRegisterOptions): this;
+		public init(): Promise<void>;
+		public sync(input?: string[]): Promise<Array<Gateway>>;
 
 		public toJSON(): GatewayDriverJSON;
 		public toString(): string;
 	}
 
 	export abstract class GatewayStorage {
-		public constructor(client: KlasaClient, type: string, provider?: string);
+		public constructor(client: KlasaClient, type: string, schema: Schema, provider?: string);
 		public readonly client: KlasaClient;
-		public readonly type: string;
-		public readonly providerName: string;
-		public readonly baseDir: string;
-		public readonly filePath: string;
-		public readonly sql: boolean;
-		public schema?: SchemaFolder;
-		public ready: boolean;
-
-		public readonly sqlSchema: string[][];
-		public readonly provider?: Provider;
 		public readonly defaults: any;
+		public readonly provider: Provider | null;
+		public readonly providerName: string;
+		public readonly type: string;
+		public ready: boolean;
+		public schema: SchemaFolder | null;
 
-		private initTable(): Promise<void>;
-		private initSchema(): Promise<SchemaFolder>;
-		private parseEntry(entry: any): any;
-
-		private static _parseSQLValue(value: any, schemaPiece: SchemaPiece): any;
+		public getPath(key?: string, options?: GatewayGetPathOptions): GatewayGetPathResult | null;
+		public init(): Promise<void>;
+		public toJSON(): GatewayJSON;
+		public toString(): string;
 	}
 
-	export abstract class Schema {
-		public constructor(client: KlasaClient, gateway: Gateway, object: any, parent: SchemaFolder, key: string);
-		public readonly client: KlasaClient;
-		public readonly gateway: Gateway;
-		public readonly parent?: SchemaFolder;
+	export class Schema extends Map<string, SchemaPiece | SchemaFolder> {
+		public constructor(path?: string);
+		public readonly configurableKeys: Array<string>;
+		public readonly defaults: ObjectLiteral;
 		public readonly path: string;
-		public readonly key: string;
-		private readonly _inited: true;
+		public readonly paths: Map<string, SchemaPiece | SchemaFolder>;
+		public readonly type: 'Folder';
+		public add(key: string, type: string, options?: SchemaPieceOptions): this;
+		public add(key: string, callback: (folder: SchemaFolder) => any): this;
+		public remove(key: string): this;
+		public get<T = Schema | SchemaPiece | SchemaFolder>(key: string | Array<string>): T;
+		public toJSON(): ObjectLiteral;
 	}
 
 	export class SchemaFolder extends Schema {
-		private constructor(client: KlasaClient, gateway: Gateway, object: any, parent: SchemaFolder, key: string);
-		public readonly type: 'Folder';
-		public defaults: object;
-		public keyArray: string[];
-
-		public readonly configurableKeys: string[];
-
-		public add(key: string, options: SchemaFolderAddOptions | { [k: string]: SchemaFolderAddOptions }, force?: boolean): Promise<SchemaFolder>;
-		public has(key: string): boolean;
-		public remove(key: string, force?: boolean): Promise<SchemaFolder>;
-		public force(action: 'add' | 'delete', key: string, piece: SchemaFolder | SchemaPiece): Promise<any>;
-		public getDefaults(data?: object): object;
-		public getSQL(array?: string[]): string[];
-
-		private _add(key: string, options: SchemaFolderAddOptions, type: typeof Schema | typeof SchemaFolder): void;
-		private _remove(key: string): void;
-		private _shardSyncSchema(piece: SchemaFolder | SchemaPiece, action: 'add' | 'delete' | 'update', force: boolean): Promise<void>;
-		private _init(options: object): true;
-
-		public entries(recursive?: boolean): Iterator<[string, SchemaFolder | SchemaPiece]>;
-		public values(recursive?: boolean): Iterator<SchemaFolder | SchemaPiece>;
-		public keys(recursive?: boolean): Iterator<string>;
-		public [Symbol.iterator](): Iterator<[string, SchemaFolder | SchemaPiece]>;
-
-		public toJSON(): any;
-		public toString(): string;
+		public constructor(parent: Schema | SchemaFolder, key: string);
+		public readonly key: string;
+		public readonly parent: Schema | SchemaFolder;
 	}
 
-	export class SchemaPiece extends Schema {
-		private constructor(client: KlasaClient, gateway: Gateway, options: SchemaFolderAddOptions, parent: SchemaFolder, key: string);
-		public type: string;
+	export class SchemaPiece {
+		public constructor(parent: Schema | SchemaFolder, key: string, type: string, options: SchemaPieceOptions);
+		public readonly client: KlasaClient | null;
+		public readonly parent: Schema | SchemaFolder;
+		public readonly key: string;
+		public readonly serializer: Serializer;
+		public readonly type: string;
+		public readonly path: string;
 		public array: boolean;
-		public default: any;
-		public min?: number;
-		public max?: number;
-		public sql: [string, string];
 		public configurable: boolean;
-		public validator?: (resolved: any, guild?: KlasaGuild) => void;
+		public default: any;
+		public min: number | null;
+		public max: number | null;
+		public filter: ((client: KlasaClient, value: any, guild?: KlasaGuild) => boolean) | null;
+		public parse<T>(value: any, guild?: KlasaGuild): T;
+		public edit(options?: SchemaPieceEditOptions): this;
+		public toJSON(): SchemaPieceOptions;
 
-		public setValidator(fn: Function): this;
-		public parse(value: any, guild: KlasaGuild): Promise<any>;
-		public modify(options: SchemaPieceEditOptions): Promise<this>;
-
+		private isValid(): boolean;
 		private _generateDefault(): Array<any> | false | null;
-		private _schemaCheckType(type: string): void;
-		private _schemaCheckArray(array: boolean): void;
-		private _schemaCheckDefault(options: SchemaFolderAddOptions): void;
-		private _schemaCheckLimits(min: number, max: number): void;
-		private _schemaCheckConfigurable(configurable: boolean): void;
-		private _generateSQLDatatype(sql?: string): string;
-		private _init(options: SchemaFolderAddOptions): true;
-
-		public toJSON(): SchemaPieceJSON;
-		public toString(): string;
-
-		private static _parseSQLValue(value: any): string;
 	}
 
 //#endregion Settings
 
 //#region Pieces
 
-	export class Piece {
-		public constructor(client: KlasaClient, store: Store<string, Piece>, type: string, file: string | string[], core: boolean, options?: PieceOptions);
+	export abstract class Piece {
+		public constructor(client: KlasaClient, store: Store<string, Piece, typeof Piece>, file: string[], directory: string, options?: PieceOptions);
 		public readonly client: KlasaClient;
-		public readonly core: boolean;
 		public readonly type: string;
-		public file: string | string[];
+		public readonly path: string;
+		public file: string[];
 		public name: string;
 		public enabled: boolean;
 		public store: Store<string, this>;
+		public directory: string;
 
-		public reload(): Promise<Piece>;
+		public reload(): Promise<this>;
 		public unload(): void;
-		public enable(): Piece;
-		public disable(): Piece;
+		public enable(): this;
+		public disable(): this;
 		public init(): Promise<any>;
-
 		public toJSON(): PieceJSON;
 		public toString(): string;
 	}
 
-	export abstract class Command extends Piece {
-		public constructor(client: KlasaClient, store: CommandStore, file: string[], core: boolean, options?: CommandOptions);
+	export abstract class AliasPiece extends Piece {
+		public constructor(client: KlasaClient, store: Store<string, Piece, typeof Piece>, file: string[], directory: string, options?: AliasPieceOptions);
+		public aliases: Array<string>;
+		public toJSON(): AliasPieceJSON;
+	}
+
+	export abstract class Argument extends AliasPiece {
+		public constructor(client: KlasaClient, store: ArgumentStore, file: string[], directory: string, options?: ArgumentOptions);
+		public aliases: string[];
+		public abstract run(arg: string, possible: Possible, message: KlasaMessage): any;
+		public static regex: MentionRegex;
+		private static minOrMax(client: KlasaClient, value: number, min: number, max: number, possible: Possible, message: KlasaMessage, suffix: string): boolean;
+	}
+
+	export abstract class Command extends AliasPiece {
+		public constructor(client: KlasaClient, store: CommandStore, file: string[], directory: string, options?: CommandOptions);
+		public readonly bucket: number;
 		public readonly category: string;
+		public readonly cooldown: number;
 		public readonly subCategory: string;
 		public readonly usageDelim: string;
 		public readonly usageString: string;
 		public aliases: string[];
-		public botPerms: string[];
-		public bucket: number;
-		public cooldown: number;
+		public requiredPermissions: Permissions;
+		public cooldownLevel: 'author' | 'channel' | 'guild';
 		public deletable: boolean;
-		public description: string | ((msg: KlasaMessage) => string);
-		public extendedHelp: string | ((msg: KlasaMessage) => string);
+		public description: string | ((language: Language) => string);
+		public extendedHelp: string | ((language: Language) => string);
 		public fullCategory: string[];
 		public guarded: boolean;
 		public nsfw: boolean;
-		public permLevel: number;
+		public permissionLevel: number;
 		public promptLimit: number;
 		public promptTime: number;
 		public quotedStringSupport: boolean;
-		public requiredConfigs: string[];
+		public requiredSettings: string[];
 		public runIn: string[];
 		public subcommands: boolean;
 		public usage: CommandUsage;
-		private cooldowns: Map<Snowflake, number>;
+		private cooldowns: RateLimitManager;
 
-		public definePrompt(usageString: string, usageDelim: string): Usage;
 		public createCustomResolver(type: string, resolver: ArgResolverCustomMethod): this;
-		public customizeResponse(name: string, response: string | ((msg: KlasaMessage, possible: Possible) => string)): this;
-
-		public run(msg: KlasaMessage, params: any[]): Promise<KlasaMessage | KlasaMessage[]>;
+		public customizeResponse(name: string, response: string | ((message: KlasaMessage, possible: Possible) => string)): this;
+		public definePrompt(usageString: string, usageDelim?: string): Usage;
+		public run(message: KlasaMessage, params: any[]): Promise<KlasaMessage | KlasaMessage[] | null>;
 		public toJSON(): PieceCommandJSON;
 	}
 
 	export abstract class Event extends Piece {
-		public constructor(client: KlasaClient, store: EventStore, file: string, core: boolean, options?: EventOptions);
+		public constructor(client: KlasaClient, store: EventStore, file: string, directory: string, options?: EventOptions);
 		public emitter: NodeJS.EventEmitter;
 		public event: string;
 		public once: boolean;
@@ -776,176 +679,178 @@ declare module 'klasa' {
 	}
 
 	export abstract class Extendable extends Piece {
-		public constructor(client: KlasaClient, store: ExtendableStore, file: string, core: boolean, options?: ExtendableOptions);
-		public readonly static: boolean;
-		public appliesTo: string[];
-		public target: boolean;
-
-		public extend(...params: any[]): any;
-		public static extend(...params: any[]): any;
+		public constructor(client: KlasaClient, store: ExtendableStore, file: string, directory: string, options?: ExtendableOptions);
+		public readonly appliesTo: Array<Constructable<any>>;
+		private staticPropertyDescriptors: PropertyDescriptorMap;
+		private instancePropertyDescriptors: PropertyDescriptorMap;
+		private originals: Map<Constructable<any>, OriginalPropertyDescriptors>;
 		public toJSON(): PieceExtendableJSON;
 	}
 
 	export abstract class Finalizer extends Piece {
-		public abstract run(msg: KlasaMessage, mes: KlasaMessage, start: Stopwatch): void;
+		public constructor(client: KlasaClient, store: FinalizerStore, file: string, directory: string, options?: FinalizerOptions);
+		public abstract run(message: KlasaMessage, response: KlasaMessage | KlasaMessage[] | null, runTime: Stopwatch): void;
 		public toJSON(): PieceFinalizerJSON;
 	}
 
 	export abstract class Inhibitor extends Piece {
-		public constructor(client: KlasaClient, store: InhibitorStore, file: string, core: boolean, options?: InhibitorOptions);
+		public constructor(client: KlasaClient, store: InhibitorStore, file: string, directory: string, options?: InhibitorOptions);
 		public spamProtection: boolean;
 
-		public abstract run(msg: KlasaMessage, cmd: Command): Promise<void | string>;
+		public abstract run(message: KlasaMessage, command: Command): Promise<void | string>;
 		public toJSON(): PieceInhibitorJSON;
 	}
 
 	export abstract class Language extends Piece {
-		public language: { [key: string]: any };
+		public constructor(client: KlasaClient, store: LanguageStore, file: string, directory: string, options?: LanguageOptions);
+		public language: ObjectLiteral<string | string[] | ((...args: any[]) => string | string[])>;
 
-		public get(term: string, ...args: any[]): any;
+		public get<T = string>(term: string, ...args: any[]): T;
 		public toJSON(): PieceLanguageJSON;
 	}
 
 	export abstract class Monitor extends Piece {
-		public constructor(client: KlasaClient, store: MonitorStore, file: string, core: boolean, options?: MonitorOptions);
-
+		public constructor(client: KlasaClient, store: MonitorStore, file: string, directory: string, options?: MonitorOptions);
 		public ignoreBots: boolean;
 		public ignoreEdits: boolean;
 		public ignoreOthers: boolean;
 		public ignoreSelf: boolean;
 		public ignoreWebhooks: boolean;
-		public abstract run(msg: KlasaMessage): void;
-		public shouldRun(msg: KlasaMessage, edit?: boolean): boolean;
+		public ignoreBlacklistedUsers: boolean;
+		public ignroeBlacklistedGuilds: boolean;
+
+		public abstract run(message: KlasaMessage): void;
+		public shouldRun(message: KlasaMessage): boolean;
 		public toJSON(): PieceMonitorJSON;
 	}
 
+	export abstract class MultiArgument extends Argument {
+		public abstract readonly base: Argument;
+		public run<T = any>(argument: string, possible: Possible, message: KlasaMessage): Promise<Array<T>>;
+	}
+
 	export abstract class Provider extends Piece {
-		public constructor(client: KlasaClient, store: ProviderStore, file: string, core: boolean, options?: ProviderOptions);
-
-		public cache: boolean;
-		public sql: boolean;
-
-		public abstract hasTable(table: string): Promise<boolean>;
-		public abstract createTable(table: string): Promise<any>;
-		public abstract deleteTable(table: string): Promise<any>;
-		public abstract getAll<T>(table: string): Promise<T[]>;
-		public abstract getKeys(table: string): Promise<string[]>;
-		public abstract get<T>(table: string, entry: string): Promise<T>;
+		public constructor(client: KlasaClient, store: ProviderStore, file: string, directory: string, options?: ProviderOptions);
+		public abstract create<T = any>(table: string, entry: string, data: any): Promise<T>;
+		public abstract createTable<T = any>(table: string, rows?: any[]): Promise<T>;
+		public abstract delete<T = any>(table: string, entry: string): Promise<T>;
+		public abstract deleteTable<T = any>(table: string): Promise<T>;
+		public abstract get<T extends ObjectLiteral>(table: string, entry: string): Promise<T>;
+		public abstract getAll<T extends ObjectLiteral>(table: string): Promise<T[]>;
 		public abstract has(table: string, entry: string): Promise<boolean>;
-		public abstract updateValue(table: string, path: string, newValue: any): Promise<any>;
-		public abstract removeValue(table: string, path: string): Promise<any>;
-		public abstract create(table: string, entry: string, data: any): Promise<any>;
-		public abstract update(table: string, entry: string, data: any): Promise<any>;
-		public abstract replace(table: string, entry: string, data: any): Promise<any>;
-		public abstract delete(table: string, entry: string): Promise<any>;
+		public abstract hasTable(table: string): Promise<boolean>;
+		public abstract update<T = any>(table: string, entry: string, data: SettingsUpdateResultEntry[] | [string, any][] | ObjectLiteral): Promise<T>;
+		public abstract replace<T = any>(table: string, entry: string, data: SettingsUpdateResultEntry[] | [string, any][] | ObjectLiteral): Promise<T>;
+		// The following is not required by SettingGateway but might be available in some providers
+		public getKeys(table: string): Promise<string[]>;
+		protected parseUpdateInput<T = ObjectLiteral>(updated: T | SettingsUpdateResult): T;
 
 		public shutdown(): Promise<void>;
 		public toJSON(): PieceProviderJSON;
 	}
 
+	export abstract class SQLProvider extends Provider {
+		public abstract qb: QueryBuilder;
+		public abstract addColumn<T = any>(table: string, columns: SchemaFolder | SchemaPiece): Promise<T>;
+		public abstract removeColumn<T = any>(table: string, columns: string | string[]): Promise<T>;
+		public abstract updateColumn<T = any>(table: string, piece: SchemaPiece): Promise<T>;
+		public abstract getColumns(table: string): Promise<Array<string>>;
+		protected parseUpdateInput<T = [string, any]>(updated?: SettingsUpdateResultEntry[] | [string, any][] | ObjectLiteral, resolve?: boolean): T;
+		protected parseEntry<T = ObjectLiteral>(gateway: string | Gateway, entry: ObjectLiteral): T;
+		protected parseValue<T = any>(value: any, schemaPiece: SchemaPiece): T;
+		private _parseGatewayInput(updated: SettingsUpdateResultEntry[], keys: string[], values: string[], resolve?: boolean): void;
+	}
+
 	export abstract class Task extends Piece {
+		public constructor(client: KlasaClient, store: TaskStore, file: string, directory: string, options?: TaskOptions);
 		public abstract run(data: any): Promise<void>;
 		public toJSON(): PieceTaskJSON;
+	}
+
+	export abstract class Serializer extends AliasPiece {
+		public constructor(client: KlasaClient, store: SerializerStore, file: string, directory: string, options?: SerializerOptions);
+		public serialize(data: any): PrimitiveType;
+		public stringify(data: any): string;
+		public toJSON(): PieceSerializerJSON;
+		public abstract deserialize<T = any>(data: any, piece: SchemaPiece, language: Language, guild?: KlasaGuild): Promise<T>;
+		public static regex: MentionRegex;
 	}
 
 //#endregion Pieces
 
 //#region Stores
 
-	export class Store<K, V> extends Collection<K, V> {
+	export abstract class Store<K, V extends Piece, VConstructor = Constructable<V>> extends Collection<K, V> {
 		public constructor(client: KlasaClient, name: string, holds: V);
-
 		public readonly client: KlasaClient;
+		public readonly holds: VConstructor;
 		public readonly name: string;
-		public readonly holds: V;
-		public readonly coreDir: string;
-		public readonly userDir: string;
+		public readonly userDirectory: string;
+		private readonly coreDirectories: Set<string>;
 
+		protected registerCoreDirectory(directory: string): this;
+		public delete(name: K | V): boolean;
+		public get(key: K): V;
+		public get<T extends V>(key: K): T;
 		public init(): Promise<any[]>;
-		public load(file: string | string[], core?: boolean): Piece;
+		public load(directory: string, file: string[]): V;
 		public loadAll(): Promise<number>;
-		public resolve(name: Piece | string): Piece;
+		public resolve(name: V | string): V;
+		public set<T extends V>(key: K, value: T): this;
+		public set(piece: V): V;
 		public toString(): string;
+
+		private static walk<K, V extends Piece, T extends Store<K, V>>(store: T, coreDirectory?: string): Promise<Array<Piece>>;
 	}
 
-	export class CommandStore extends Store<string, Command> {
-		public constructor(client: KlasaClient);
-		public aliases: Collection<string, Command>;
-
-		public get(name: string): Command;
-		public has(name: string): boolean;
-		public set(key: string, value: Command): this;
-		public set(command: Command): Command;
-		public delete(name: Command | string): boolean;
-		public clear(): void;
+	export abstract class AliasStore<K, V extends Piece, VConstructor = Constructable<V>> extends Store<K, V, VConstructor> {
+		public aliases: Collection<K, V>;
 	}
 
-	export class EventStore extends Store<string, Event> {
-		public constructor(client: KlasaClient);
+	export class ArgumentStore extends AliasStore<string, Argument, typeof Argument> { }
+
+	export class CommandStore extends AliasStore<string, Command, typeof Command> { }
+
+	export class EventStore extends Store<string, Event, typeof Event> {
 		private _onceEvents: Set<string>;
-
-		public clear(): void;
-		public delete(name: Event | string): boolean;
-		public set(key: string, value: Event): this;
-		public set(event: Event): Event;
 	}
 
-	export class ExtendableStore extends Store<string, Extendable> {
-		public constructor(client: KlasaClient);
+	export class ExtendableStore extends Store<string, Extendable, typeof Extendable> { }
 
-		public delete(name: Extendable | string): boolean;
-		public clear(): void;
-		public set(key: string, value: Extendable): this;
-		public set(extendable: Extendable): Extendable;
+	export class FinalizerStore extends Store<string, Finalizer, typeof Finalizer> {
+		public run(message: KlasaMessage, response: KlasaMessage, runTime: Stopwatch): Promise<void>;
 	}
 
-	export class FinalizerStore extends Store<string, Finalizer> {
-		public constructor(client: KlasaClient);
-
-		public run(msg: KlasaMessage, mes: KlasaMessage, start: number): Promise<void>;
+	export class InhibitorStore extends Store<string, Inhibitor, typeof Inhibitor> {
+		public run(message: KlasaMessage, command: Command, selective: boolean): Promise<void>;
 	}
 
-	export class InhibitorStore extends Store<string, Inhibitor> {
-		public constructor(client: KlasaClient);
-
-		public run(msg: KlasaMessage, cmd: Command, selective: boolean): Promise<void>;
-	}
-
-	export class LanguageStore extends Store<string, Language> {
-		public constructor(client: KlasaClient);
-
+	export class LanguageStore extends Store<string, Language, typeof Language> {
 		public readonly default: Language;
 	}
 
-	export class MonitorStore extends Store<string, Monitor> {
-		public constructor(client: KlasaClient);
-
-		public run(msg: KlasaMessage, edit?: boolean): Promise<void>;
-
-		private _run(msg: KlasaMessage, monitor: Monitor);
+	export class MonitorStore extends Store<string, Monitor, typeof Monitor> {
+		public run(message: KlasaMessage): Promise<void>;
+		private _run(message: KlasaMessage, monitor: Monitor);
 	}
 
-	export class ProviderStore extends Store<string, Provider> {
-		public constructor(client: KlasaClient);
-
-		public readonly default?: Provider;
-		public clear(): void;
-		public delete(name: Provider | string): boolean;
+	export class ProviderStore extends Store<string, Provider, typeof Provider> {
+		public readonly default: Provider;
 	}
 
-	export class TaskStore extends Store<string, Task> {
-		public constructor(client: KlasaClient);
-	}
+	export class TaskStore extends Store<string, Task, typeof Task> { }
+
+	export class SerializerStore extends AliasStore<string, Serializer, typeof Serializer> { }
 
 //#endregion Stores
 
 //#region Usage
 
 	export class CommandPrompt extends TextPrompt {
-		public constructor(msg: KlasaMessage, usage: CommandUsage, options: TextPromptOptions);
+		public constructor(message: KlasaMessage, usage: CommandUsage, options: TextPromptOptions);
 		private typing: boolean;
 
-		public run(): Promise<any[]>;
+		public run<T = any[]>(): Promise<T>;
 		private static generateNewDelim(delim: string): RegExp;
 		private static delims: Map<string, RegExp>;
 	}
@@ -956,8 +861,8 @@ declare module 'klasa' {
 		public commands: string;
 		public nearlyFullUsage: string;
 
-		public createPrompt(msg: KlasaMessage, options?: TextPromptOptions): CommandPrompt;
-		public fullUsage(msg: KlasaMessage): string;
+		public createPrompt(message: KlasaMessage, options?: TextPromptOptions): CommandPrompt;
+		public fullUsage(message: KlasaMessage): string;
 		public toString(): string;
 	}
 
@@ -976,7 +881,7 @@ declare module 'klasa' {
 		public constructor(members: string, count: number, required: number);
 		public required: number;
 		public possibles: Possible[];
-		public response: string | ((msg: KlasaMessage) => string);
+		public response: string | ((message: KlasaMessage) => string);
 
 		private register(name: string, response: ArgResolverCustomMethod): boolean;
 		private static pattern: RegExp;
@@ -985,23 +890,24 @@ declare module 'klasa' {
 	}
 
 	export class TextPrompt {
-		public constructor(msg: KlasaMessage, usage: Usage, options: TextPromptOptions);
+		public constructor(message: KlasaMessage, usage: Usage, options: TextPromptOptions);
 		public readonly client: KlasaClient;
 		public message: KlasaMessage;
 		public usage: Usage | CommandUsage;
 		public reprompted: boolean;
-		public flags: object;
+		public flags: ObjectLiteral<string>;
 		public args: string[];
 		public params: any[];
-		public promptTime: number;
-		public promptLimit: number;
+		public time: number;
+		public limit: number;
 		public quotedStringSupport: boolean;
+		public responses: Collection<string, KlasaMessage>;
 		private _repeat: boolean;
 		private _required: number;
 		private _prompted: number;
 		private _currentUsage: Tag;
 
-		public run(prompt: string): Promise<any[]>;
+		public run<T = any[]>(prompt: string): Promise<T>;
 		private reprompt(prompt: string): Promise<any[]>;
 		private repeatingPrompt(): Promise<any[]>;
 		private validateArgs(): Promise<any[]>;
@@ -1011,7 +917,7 @@ declare module 'klasa' {
 		private finalize(): any[];
 		private _setup(original: string): void;
 
-		private static getFlags(content: string, delim: string): { content: string; flags: object };
+		private static getFlags(content: string, delim: string): { content: string; flags: ObjectLiteral<string> };
 		private static getArgs(content: string, delim: string): string[];
 		private static getQuotedStringArgs(content: string, delim: string): string[];
 
@@ -1025,18 +931,18 @@ declare module 'klasa' {
 		public usageString: string;
 		public usageDelim: string;
 		public parsedUsage: Tag[];
-		public customResolvers: { [K: string]: ArgResolverCustomMethod };
+		public customResolvers: ObjectLiteral<ArgResolverCustomMethod>;
 
 		public createCustomResolver(type: string, resolver: ArgResolverCustomMethod): this;
-		public customizeResponse(name: string, response: ((msg: KlasaMessage) => string)): this;
-		public createPrompt(msg: KlasaMessage, options?: TextPromptOptions): TextPrompt;
+		public customizeResponse(name: string, response: ((message: KlasaMessage) => string)): this;
+		public createPrompt(message: KlasaMessage, options?: TextPromptOptions): TextPrompt;
 		public toJSON(): Tag[];
 		public toString(): string;
 
 		private static parseUsage(usageString: string): Tag[];
-		private static tagOpen(usage: object, char: string): void;
-		private static tagClose(usage: object, char: string): void;
-		private static tagSpace(usage: object, char: string): void;
+		private static tagOpen(usage: ObjectLiteral, char: string): void;
+		private static tagClose(usage: ObjectLiteral, char: string): void;
+		private static tagSpace(usage: ObjectLiteral, char: string): void;
 	}
 
 //#endregion Usage
@@ -1048,8 +954,8 @@ declare module 'klasa' {
 		public opening: string;
 		public closing: string;
 
-		public format(input: string, type?: ColorsFormatOptions): string;
-		public static useColors?: boolean;
+		public format(input: string): string;
+		public static useColors: boolean | null;
 		public static CLOSE: ColorsClose;
 		public static STYLES: ColorsStyles;
 		public static TEXTS: ColorsTexts;
@@ -1065,46 +971,7 @@ declare module 'klasa' {
 
 	}
 
-	export type constants = {
-		DEFAULTS: {
-			CLIENT: KlasaConstantsClient,
-			CONSOLE: KlasaConsoleConfig
-		};
-		CRON: {
-			allowedNum: number[][];
-			partRegex: RegExp;
-			day: number;
-			predefined: {
-				'@yearly': '0 0 0 1 1 *',
-				'@monthly': '0 0 0 1 * *',
-				'@weekly': '0 0 0 * * 0',
-				'@daily': '0 0 0 * * *',
-				'@hourly': '0 0 * * * *'
-			};
-			tokens: {
-				jan: 1,
-				feb: 2,
-				mar: 3,
-				apr: 4,
-				may: 5,
-				jun: 6,
-				jul: 7,
-				aug: 8,
-				sep: 9,
-				oct: 10,
-				nov: 11,
-				dec: 12,
-				sun: 0,
-				mon: 1,
-				tue: 2,
-				wed: 3,
-				thu: 4,
-				fri: 5,
-				sat: 6
-			};
-			tokensRegex: RegExp;
-		};
-	};
+	export const constants: Constants;
 
 	export class Cron {
 		public constructor(cron: string);
@@ -1152,13 +1019,13 @@ declare module 'klasa' {
 		private static _parse(pattern: string): number;
 	}
 
-	export class KlasaConsole implements Console {
+	export class KlasaConsole {
 		private constructor(client: KlasaClient, options: KlasaConsoleConfig);
 		public readonly client: KlasaClient;
 		public readonly stdout: NodeJS.WritableStream;
 		public readonly stderr: NodeJS.WritableStream;
-		public template?: Timestamp;
-		public colors: object;
+		public template: Timestamp | null;
+		public colors: KlasaConsoleColorStyles;
 		public utc: boolean;
 
 		private readonly timestamp: string;
@@ -1172,36 +1039,36 @@ declare module 'klasa' {
 		public verbose(...data: any[]): void;
 		public wtf(...data: any[]): void;
 
-		// Console methods
-		// tslint:disable-next-line
-		public Console: NodeJS.ConsoleConstructor;
-		public assert(test?: boolean, message?: string, ...optionalParameters: any[]): void;
-		public clear(): void;
-		public count(countTitle?: string): void;
-		public dir(value?: any, ...optionalParameters: any[]): void;
-		public dirxml(value?: any): void;
-		public exception(message?: string, ...optionalParameters: any[]): void;
-		public group(groupTitle?: string, ...optionalParameters: any[]): void;
-		public groupCollapsed(groupTitle?: string, ...optionalParameters: any[]): void;
-		public groupEnd(): void;
-		public info(message?: string, ...optionalParameters: any[]): void;
-		public msIsIndependentlyComposed(element: any): boolean;
-		public profile(reportName?: string): void;
-		public profileEnd(): void;
-		public select(element: any): void;
-		public table(...data: any[]): void;
-		public time(timerName?: string): void;
-		public timeEnd(timerName?: string): void;
-		public trace(message?: string, ...optionalParameters: any[]): void;
-		// End of Console methods
-
 		private static _flatten(data: any): string;
 	}
 
+	export class RateLimit {
+		public constructor(bucket: number, cooldown: number);
+		public readonly expired: boolean;
+		public readonly limited: boolean;
+		public readonly remainingTime: number;
+		public bucket: number;
+		public cooldown: number;
+		private remaining: number;
+		private time: number;
+		public drip(): this;
+		public reset(): this;
+		public resetRemaining(): this;
+		public resetTime(): this;
+	}
+
+	export class RateLimitManager extends Collection<Snowflake, RateLimit> {
+		public constructor(bucket: number, cooldown: number);
+		public bucket: number;
+		public cooldown: number;
+		private sweepInterval: NodeJS.Timer | null;
+		public create(id: Snowflake): RateLimit;
+	}
+
 	export class ReactionHandler extends ReactionCollector {
-		public constructor(msg: KlasaMessage, filter: Function, options: ReactionHandlerOptions, display: RichDisplay | RichMenu, emojis: emoji[]);
+		public constructor(message: KlasaMessage, filter: Function, options: ReactionHandlerOptions, display: RichDisplay | RichMenu, emojis: EmojiResolvable[]);
 		public display: RichDisplay | RichMenu;
-		public methodMap: Map<string, emoji>;
+		public methodMap: Map<string, EmojiResolvable>;
 		public currentPage: number;
 		public prompt: string;
 		public time: number;
@@ -1228,14 +1095,14 @@ declare module 'klasa' {
 		public nine(): void;
 		public update(): void;
 
-		private _queueEmojiReactions(emojis: emoji[]): Promise<null>;
+		private _queueEmojiReactions(emojis: EmojiResolvable[]): Promise<null>;
 	}
 
 	export class RichDisplay {
-		public constructor(embed: MessageEmbed);
+		public constructor(embed?: MessageEmbed);
 		public embedTemplate: MessageEmbed;
 		public pages: MessageEmbed[];
-		public infoPage?: MessageEmbed;
+		public infoPage: MessageEmbed | null;
 		public emojis: RichDisplayEmojisObject;
 		public footered: boolean;
 		public footerPrefix: string;
@@ -1248,23 +1115,23 @@ declare module 'klasa' {
 		public useCustomFooters(): this;
 		public addPage(embed: Function | MessageEmbed): this;
 		public setInfoPage(embed: MessageEmbed): RichDisplay;
-		public run(msg: KlasaMessage, options?: RichDisplayRunOptions): Promise<ReactionHandler>;
+		public run(message: KlasaMessage, options?: RichDisplayRunOptions): Promise<ReactionHandler>;
 
-		protected _determineEmojis(emojis: emoji[], stop: boolean, jump: boolean, firstLast: boolean): emoji[];
+		protected _determineEmojis(emojis: EmojiResolvable[], stop: boolean, jump: boolean, firstLast: boolean): EmojiResolvable[];
 		private _footer(): void;
 		private _handlePageGeneration(cb: Function | MessageEmbed): MessageEmbed;
 	}
 
 	export class RichMenu extends RichDisplay {
-		public constructor(embed: MessageEmbed);
+		public constructor(embed?: MessageEmbed);
 		public emojis: RichMenuEmojisObject;
 		public paginated: boolean;
 		public options: MenuOption[];
 
 		public addOption(name: string, body: string, inline?: boolean): RichMenu;
-		public run(msg: KlasaMessage, options?: RichMenuRunOptions): Promise<ReactionHandler>;
+		public run(message: KlasaMessage, options?: RichMenuRunOptions): Promise<ReactionHandler>;
 
-		protected _determineEmojis(emojis: emoji[], stop: boolean): emoji[];
+		protected _determineEmojis(emojis: EmojiResolvable[], stop: boolean): EmojiResolvable[];
 		private _paginate(): void;
 	}
 
@@ -1272,10 +1139,9 @@ declare module 'klasa' {
 		public constructor(digits?: number);
 		public digits: number;
 		private _start: number;
-		private _end?: number;
+		private _end: number | null;
 
 		public readonly duration: number;
-		public readonly friendlyDuration: string;
 		public readonly running: boolean;
 		public restart(): this;
 		public reset(): this;
@@ -1290,12 +1156,49 @@ declare module 'klasa' {
 		private _template: TimestampObject[];
 
 		public display(time?: Date | number | string): string;
+		public displayUTC(time?: Date | number | string): string;
 		public edit(pattern: string): this;
 
+		public static utc(time?: Date | number | string): Date;
 		public static displayArbitrary(pattern: string, time?: Date | number | string): string;
 
+		private static A(time: Date): string;
+		private static a(time: Date): string;
+		private static d(time: Date): string;
+		private static D(time: Date): string;
+		private static dd(time: Date): string;
+		private static DD(time: Date): string;
+		private static ddd(time: Date): string;
+		private static DDD(time: Date): string;
+		private static dddd(time: Date): string;
+		private static DDDD(time: Date): string;
+		private static h(time: Date): string;
+		private static H(time: Date): string;
+		private static hh(time: Date): string;
+		private static HH(time: Date): string;
+		private static m(time: Date): string;
+		private static M(time: Date): string;
+		private static mm(time: Date): string;
+		private static MM(time: Date): string;
+		private static MMM(time: Date): string;
+		private static MMMM(time: Date): string;
+		private static Q(time: Date): string;
+		private static S(time: Date): string;
+		private static s(time: Date): string;
+		private static ss(time: Date): string;
+		private static SS(time: Date): string;
+		private static SSS(time: Date): string;
+		private static x(time: Date): string;
+		private static X(time: Date): string;
+		private static Y(time: Date): string;
+		private static YY(time: Date): string;
+		private static YYY(time: Date): string;
+		private static YYYY(time: Date): string;
+		private static Z(time: Date): string;
+		private static ZZ(time: Date): string;
+
+		private static _resolveDate(time: Date | number | string): Date;
 		private static _display(template: string, time: Date | number | string): string;
-		private static _parse(type: string, time: Date): string;
 		private static _patch(pattern: string): TimestampObject[];
 	}
 
@@ -1305,9 +1208,9 @@ declare module 'klasa' {
 		public value: any;
 		public is: string;
 
-		private parent: ?Type;
-		private childKeys: Map;
-		private childValues: Map;
+		private parent: Type | null;
+		private childKeys: Map<string, Type>;
+		private childValues: Map<string, Type>;
 
 		private readonly childTypes: string;
 
@@ -1321,34 +1224,37 @@ declare module 'klasa' {
 
 		public static resolve(value: any): string;
 
-		private static list(values: Map): string;
+		private static list(values: Map<string, Type>): string;
 	}
 
 	class Util {
-		public static applyToClass(base: object, structure: object, skips?: string[]): void;
+		public static arrayFromObject<T = any>(obj: ObjectLiteral<T>, prefix?: string): Array<T>;
+		public static arraysStrictEquals(arr1: any[], arr2: any[]): boolean;
+		public static chunk<T>(entries: T[], chunkSize: number): Array<T[]>;
 		public static clean(text: string): string;
-		public static codeBlock(lang: string, expression: string): string;
-		public static deepClone(source: any): any;
+		public static codeBlock(lang: string, expression: string | number | Stringifible): string;
+		public static deepClone<T = any>(source: T): T;
 		public static exec(exec: string, options?: ExecOptions): Promise<{ stdout: string, stderr: string }>;
-		public static getIdentifier(value: PrimitiveType | { id?: PrimitiveType, name?: PrimitiveType }): PrimitiveType | null;
 		public static getTypeName(input: any): string;
-		public static isClass(input: Function): boolean;
-		public static isFunction(input: Function): boolean;
-		public static isNumber(input: number): boolean;
-		public static isObject(input: object): boolean;
-		public static isThenable(input: Promise<any>): boolean;
-		public static makeObject(path: string, value: any): object;
-		public static arraysEqual(arr1: any[], arr2: any[], clone?: boolean): boolean;
-		public static mergeDefault(def: object, given?: object): object;
-		public static mergeObjects(objTarget: object, objSource: object): object;
+		public static isClass(input: any): input is Constructable<any>;
+		public static isFunction(input: any): input is Function;
+		public static isNumber(input: any): input is number;
+		public static isObject(input: any): boolean;
+		public static isPrimitive(input: any): input is string | number | boolean;
+		public static isThenable(input: any): boolean;
+		public static makeObject<T = ObjectLiteral, S = ObjectLiteral>(path: string, value: any, obj?: ObjectLiteral): T & S;
+		public static mergeDefault<T = ObjectLiteral, S = ObjectLiteral>(objDefaults: T, objSource: S): T & S;
+		public static mergeObjects<T = ObjectLiteral, S = ObjectLiteral>(objTarget: T, objSource: S): T & S;
+		public static objectToTuples(obj: ObjectLiteral): Array<[string, any]>;
 		public static regExpEsc(str: string): string;
-		public static sleep(delay: number, args?: any): Promise<any>;
-		public static sleep<T>(delay: number, args?: T): Promise<T>;
+		public static sleep<T = any>(delay: number, args?: T): Promise<T>;
 		public static toTitleCase(str: string): string;
-		public static tryParse(value: string): object;
+		public static tryParse<T = ObjectLiteral>(value: string): T | string;
+		public static resolveGuild(client: KlasaClient, guild: GuildResolvable): KlasaGuild;
 		private static initClean(client: KlasaClient): void;
 
 		public static titleCaseVariants: TitleCaseVariants;
+		public static PRIMITIVE_TYPES: string[];
 	}
 
 	export { Util as util };
@@ -1360,24 +1266,30 @@ declare module 'klasa' {
 //#region Typedefs
 
 	export type KlasaClientOptions = {
-		clientBaseDir?: string;
-		cmdEditing?: boolean;
-		cmdLogging?: boolean;
+		commandEditing?: boolean;
+		commandLogging?: boolean;
 		commandMessageLifetime?: number;
 		console?: KlasaConsoleConfig;
 		consoleEvents?: KlasaConsoleEvents;
+		createPiecesFolders?: boolean;
 		customPromptDefaults?: KlasaCustomPromptDefaults;
+		disabledCorePieces?: string[];
 		gateways?: KlasaGatewaysOptions;
 		language?: string;
+		noPrefixDM?: boolean;
 		ownerID?: string;
 		permissionLevels?: PermissionLevels;
 		pieceDefaults?: KlasaPieceDefaults;
-		prefix?: string;
-		preserveConfigs?: boolean;
+		prefix?: string | string[];
+		prefixCaseInsensitive?: boolean;
+		preserveSettings?: boolean;
+		production?: boolean;
 		providers?: KlasaProvidersOptions;
 		readyMessage?: (client: KlasaClient) => string;
 		regexPrefix?: RegExp;
 		schedule?: KlasaClientOptionsSchedule;
+		slowmode?: number;
+		slowmodeAggressive?: boolean;
 		typing?: boolean;
 	} & ClientOptions;
 
@@ -1386,12 +1298,13 @@ declare module 'klasa' {
 	};
 
 	export type KlasaCustomPromptDefaults = {
-		promptLimit?: number;
-		promptTime?: number;
+		limit?: number;
+		time?: number;
 		quotedStringSupport?: boolean;
 	};
 
 	export type KlasaPieceDefaults = {
+		arguments?: ArgumentOptions;
 		commands?: CommandOptions;
 		events?: EventOptions;
 		extendables?: ExtendableOptions;
@@ -1400,37 +1313,96 @@ declare module 'klasa' {
 		languages?: LanguageOptions;
 		monitors?: MonitorOptions;
 		providers?: ProviderOptions;
+		serializers?: SerializerOptions;
 	};
 
 	export type KlasaProvidersOptions = {
 		default?: string;
-	} & object;
+	} & ObjectLiteral;
 
 	export type KlasaGatewaysOptions = {
-		clientStorage?: GatewayDriverAddOptions;
-		guilds?: GatewayDriverAddOptions;
-		users?: GatewayDriverAddOptions;
-	} & object;
-
-	export type ExecOptions = {
-		cwd?: string;
-		encoding?: string;
-		env?: StringMappedType<string>;
-		gid?: number;
-		killSignal?: string | number;
-		maxBuffer?: number;
-		shell?: string;
-		timeout?: number;
-		uid?: number;
-	};
+		clientStorage?: GatewayDriverRegisterOptions;
+		guilds?: GatewayDriverRegisterOptions;
+		users?: GatewayDriverRegisterOptions;
+	} & ObjectLiteral;
 
 	// Parsers
-	type ArgResolverCustomMethod = (arg: string, possible: Possible, msg: KlasaMessage, params: string[]) => Promise<any>;
+	export type ArgResolverCustomMethod = (arg: string, possible: Possible, message: KlasaMessage, params: string[]) => any;
+
+	export type Constants = {
+		DEFAULTS: {
+			CLIENT: KlasaClientOptions,
+			CONSOLE: KlasaConsoleConfig,
+			DATATYPES: ObjectLiteral<QueryBuilderDatatype>
+		};
+		TIME: {
+			SECOND: number;
+			MINUTE: number;
+			HOUR: number;
+			DAY: number;
+			DAYS: string[];
+			MONTHS: string[];
+			TIMESTAMP: {
+				TOKENS: {
+					Y: number;
+					Q: number;
+					M: number;
+					D: number;
+					d: number;
+					X: number;
+					x: number;
+					H: number;
+					h: number;
+					a: number;
+					A: number;
+					m: number;
+					s: number;
+					S: number;
+					Z: number;
+				};
+			};
+			CRON: {
+				partRegex: RegExp;
+				allowedNum: number[][];
+				predefined: {
+					'@annually': string;
+					'@yearly': string;
+					'@monthly': string;
+					'@weekly': string;
+					'@daily': string;
+					'@hourly': string;
+				};
+				tokens: {
+					jan: number;
+					feb: number;
+					mar: number;
+					apr: number;
+					may: number;
+					jun: number;
+					jul: number;
+					aug: number;
+					sep: number;
+					oct: number;
+					nov: number;
+					dec: number;
+					sun: number;
+					mon: number;
+					tue: number;
+					wed: number;
+					thu: number;
+					fri: number;
+					sat: number;
+				};
+				tokensRegex: RegExp;
+			}
+		};
+		MENTION_REGEX: MentionRegex;
+	};
 
 	// Permissions
 	export type PermissionLevel = {
 		break: boolean;
-		check: (client: KlasaClient, msg: KlasaMessage) => boolean;
+		check: (client: KlasaClient, message: KlasaMessage) => Promise<boolean> | boolean;
 		fetch: boolean;
 	};
 
@@ -1453,7 +1425,7 @@ declare module 'klasa' {
 
 	export type ScheduledTaskJSON = {
 		catchUp: boolean;
-		data?: any;
+		data: ObjectLiteral;
 		id: string;
 		taskName: string;
 		time: number;
@@ -1468,13 +1440,12 @@ declare module 'klasa' {
 
 	// Settings
 	export type GatewayOptions = {
-		nice?: boolean;
-		provider: Provider;
+		provider: string;
 	};
 
 	export type GatewayJSON = {
 		options: GatewayOptions;
-		schema: SchemaFolderJSON;
+		schema: SchemaFolderAddOptions;
 		type: string;
 	};
 
@@ -1489,84 +1460,68 @@ declare module 'klasa' {
 		route: string[];
 	};
 
+	export type QueryBuilderDatatype = {
+		array?: (datatype: string) => string;
+		resolver?: <T = any>(input: any, schemaPiece: SchemaPiece) => T;
+		type: string | ((piece: SchemaPiece) => string);
+	} | string;
+
+	export type QueryBuilderOptions = {
+		arrayResolver?: (values: Array<any>, piece: SchemaPiece, resolver: Function) => string;
+		formatDatatype?: (name: string, datatype: string, def?: string) => string;
+	} & ObjectLiteral<string | ((piece: SchemaPiece) => string) | QueryBuilderDatatype>;
+
 	export type GuildResolvable = KlasaGuild
 		| KlasaMessage
-		| KlasaTextChannel
-		| KlasaVoiceChannel
-		| KlasaCategoryChannel
-		| GuildMember
-		| Role;
+		| KlasaGuildChannel
+		| Snowflake;
 
-	export type ConfigurationUpdateOptions = {
-		action?: 'add' | 'remove' | 'auto';
+	export type SettingsResetOptions = {
+		avoidUnconfigurable?: boolean;
+		force?: boolean;
+	};
+
+	export type SettingsUpdateOptions = {
+		action?: 'add' | 'remove' | 'auto' | 'overwrite';
 		arrayPosition?: number;
 		avoidUnconfigurable?: boolean;
+		force?: boolean;
 	};
 
-	export type ConfigurationUpdateResult = {
+	export type SettingsUpdateResult = {
 		errors: Error[];
-		updated: ConfigurationUpdateResultEntry[];
+		updated: SettingsUpdateResultEntry[];
 	};
 
-	export type ConfigurationUpdateResultEntry = {
+	export type SettingsUpdateResultEntry = {
 		data: [string, any];
 		piece: SchemaPiece;
 	};
 
-	export type GatewayGuildResolvable = KlasaGuild
-		| KlasaMessage
-		| KlasaTextChannel
-		| KlasaVoiceChannel
-		| Role
-		| Snowflake;
-
-	export type ConfigurationPathOptions = {
-		avoidUnconfigurable?: boolean;
-		piece?: boolean;
-	};
-
-	export type ConfigurationPathResult = {
-		path: SchemaPiece;
-		route: string[];
-	};
-
-	export type GatewayDriverAddOptions = {
-		nice?: boolean;
+	export type GatewayDriverRegisterOptions = {
 		provider?: string;
+		schema?: Schema;
+		syncArg?: string[] | string | true;
 	};
 
-	export type SchemaFolderAddOptions = {
+	export type SchemaFolderAddOptions = SchemaFolderOptions | SchemaPieceOptions;
+
+	export type SchemaPieceOptions = {
 		array?: boolean;
 		configurable?: boolean;
 		default?: any;
-		max?: number;
 		min?: number;
-		sql?: string;
-		type: string;
+		max?: number;
+		filter?: (value: any, guild?: KlasaGuild) => void;
 	};
 
 	export type SchemaPieceEditOptions = {
-		configurable?: boolean;
-		default?: any;
-		max?: number;
-		min?: number;
-		sql?: string;
-	};
+		type?: string;
+	} & SchemaPieceOptions;
 
-	export type SchemaPieceJSON = {
-		array: boolean;
-		configurable: boolean;
-		default: any;
-		max?: number;
-		min?: number;
-		sql: string;
-		type: string;
-	};
-
-	export type SchemaFolderJSON = {
-		type: 'Folder';
-		[k: string]: SchemaPieceJSON | SchemaFolderJSON | string;
-	};
+	export type SchemaFolderOptions = {
+		type?: 'Folder';
+	} & ObjectLiteral<SchemaPieceOptions>;
 
 	export type GatewayDriverJSON = {
 		clientStorage: GatewayJSON;
@@ -1574,9 +1529,7 @@ declare module 'klasa' {
 		users: GatewayJSON;
 		keys: string[];
 		ready: boolean;
-		types: string[];
-		[k: string]: GatewayJSON | any;
-	};
+	} & ObjectLiteral<GatewayJSON>;
 
 	// Structures
 	export type PieceOptions = {
@@ -1584,31 +1537,34 @@ declare module 'klasa' {
 		name?: string,
 	};
 
-	export type CommandOptions = {
+	export type ArgumentOptions = {
 		aliases?: string[];
+	} & PieceOptions;
+
+	export type CommandOptions = {
 		autoAliases?: boolean;
-		botPerms?: string[];
+		requiredPermissions?: PermissionResolvable;
 		bucket?: number;
 		cooldown?: number;
+		cooldownLevel?: 'author' | 'channel' | 'guild';
 		deletable?: boolean;
-		description?: string | ((msg: KlasaMessage) => string);
-		extendedHelp?: string | ((msg: KlasaMessage) => string);
+		description?: string | string[] | ((language: Language) => string | string[]);
+		extendedHelp?: string | string[] | ((language: Language) => string | string[]);
 		guarded?: boolean;
 		nsfw?: boolean;
-		permLevel?: number;
+		permissionLevel?: number;
 		promptLimit?: number;
 		promptTime?: number;
 		quotedStringSupport?: boolean;
-		requiredConfigs?: string[];
+		requiredSettings?: string[];
 		runIn?: Array<'text' | 'dm' | 'group'>;
 		subcommands?: boolean;
 		usage?: string;
 		usageDelim?: string;
-	} & PieceOptions;
+	} & AliasPieceOptions;
 
 	export type ExtendableOptions = {
-		appliesTo: string[];
-		klasa?: boolean;
+		appliesTo: Array<Constructable<any>>;
 	} & PieceOptions;
 
 	export type InhibitorOptions = {
@@ -1621,11 +1577,8 @@ declare module 'klasa' {
 		ignoreOthers?: boolean;
 		ignoreSelf?: boolean;
 		ignoreWebhooks?: boolean;
-	} & PieceOptions;
-
-	export type ProviderOptions = {
-		cache?: boolean;
-		sql?: boolean;
+		ignoreBlacklistedUsers?: boolean;
+		ignroeBlacklistedGuilds?: boolean;
 	} & PieceOptions;
 
 	export type EventOptions = {
@@ -1634,35 +1587,51 @@ declare module 'klasa' {
 		once?: boolean;
 	} & PieceOptions;
 
+	export type SerializerOptions = AliasPieceOptions;
+	export type ProviderOptions = PieceOptions;
 	export type FinalizerOptions = PieceOptions;
 	export type LanguageOptions = PieceOptions;
 	export type TaskOptions = PieceOptions;
 
+	export type AliasPieceOptions = {
+		aliases?: Array<string>;
+	} & PieceOptions;
+
+	export type AliasPieceJSON = {
+		aliases: Array<string>;
+	} & PieceJSON;
+
+	export type OriginalPropertyDescriptors = {
+		staticPropertyDescriptors: PropertyDescriptorMap;
+		instancePropertyDescriptors: PropertyDescriptorMap;
+	};
+
 	export type PieceJSON = {
-		dir: string;
+		directory: string;
+		path: string;
 		enabled: boolean;
 		file: string[];
 		name: string;
 		type: string;
 	};
 
+
 	export type PieceCommandJSON = {
-		aliases: string[];
-		botPerms: string[];
+		requiredPermissions: string[];
 		bucket: number;
 		category: string;
 		cooldown: number;
 		deletable: boolean;
-		description: string | ((msg: KlasaMessage) => string);
-		extendedHelp: string | ((msg: KlasaMessage) => string);
+		description: string | ((language: Language) => string);
+		extendedHelp: string | ((language: Language) => string);
 		fullCategory: string[];
 		guarded: boolean;
 		nsfw: boolean;
-		permLevel: number;
+		permissionLevel: number;
 		promptLimit: number;
 		promptTime: number;
 		quotedStringSupport: boolean;
-		requiredConfigs: string[];
+		requiredSettings: string[];
 		runIn: Array<'text' | 'dm' | 'group'>;
 		subCategory: string;
 		subcommands: boolean;
@@ -1673,11 +1642,10 @@ declare module 'klasa' {
 		};
 		usageDelim: string;
 		usageString: string;
-	} & PieceJSON;
+	} & AliasPieceJSON;
 
 	export type PieceExtendableJSON = {
 		appliesTo: string[];
-		target: string;
 	} & PieceJSON;
 
 	export type PieceInhibitorJSON = {
@@ -1690,11 +1658,8 @@ declare module 'klasa' {
 		ignoreOthers: boolean;
 		ignoreSelf: boolean;
 		ignoreWebhooks: boolean;
-	} & PieceJSON;
-
-	export type PieceProviderJSON = {
-		cache: boolean;
-		sql: boolean;
+		ignoreBlacklistedUsers: boolean;
+		ignroeBlacklistedGuilds: boolean;
 	} & PieceJSON;
 
 	export type PieceEventJSON = {
@@ -1703,14 +1668,17 @@ declare module 'klasa' {
 		once: boolean;
 	} & PieceJSON;
 
+	export type PieceArgumentJSON = AliasPieceJSON;
+	export type PieceSerializerJSON = AliasPieceJSON;
+	export type PieceProviderJSON = PieceJSON;
 	export type PieceFinalizerJSON = PieceJSON;
 	export type PieceLanguageJSON = PieceJSON;
 	export type PieceTaskJSON = PieceJSON;
 
 	// Usage
 	export type TextPromptOptions = {
-		promptLimit?: number;
-		promptTime?: number;
+		limit?: number;
+		time?: number;
 		quotedStringSupport?: boolean;
 	};
 
@@ -1782,27 +1750,20 @@ declare module 'klasa' {
 	};
 
 	export type ColorsFormatOptions = {
-		background: string | number | string[];
-		style: string | string[];
-		text: string | number | string[]
+		background?: string | number | string[];
+		style?: string | string[];
+		text?: string | number | string[]
 	};
 
 	export type ColorsFormatType = string | number | [string, string, string] | [number, number, number];
 
-	type ColorsFormatData = {
+	export type ColorsFormatData = {
 		opening: string[];
 		closing: string[];
 	};
 
 	export type KlasaConsoleConfig = {
-		types?: {
-			debug?: string;
-			error?: string;
-			log?: string;
-			verbose?: string;
-			warn?: string;
-			wtf?: string;
-		};
+		utc?: boolean;
 		colors?: KlasaConsoleColorStyles;
 		stderr?: NodeJS.WritableStream;
 		stdout?: NodeJS.WritableStream;
@@ -1820,12 +1781,12 @@ declare module 'klasa' {
 	};
 
 	export type KlasaConsoleColorStyles = {
-		debug: KlasaConsoleColorObjects;
-		error: KlasaConsoleColorObjects;
-		log: KlasaConsoleColorObjects;
-		verbose: KlasaConsoleColorObjects;
-		warn: KlasaConsoleColorObjects;
-		wtf: KlasaConsoleColorObjects;
+		debug?: KlasaConsoleColorObjects;
+		error?: KlasaConsoleColorObjects;
+		log?: KlasaConsoleColorObjects;
+		verbose?: KlasaConsoleColorObjects;
+		warn?: KlasaConsoleColorObjects;
+		wtf?: KlasaConsoleColorObjects;
 	};
 
 	export type KlasaConsoleColorObjects = {
@@ -1875,47 +1836,6 @@ declare module 'klasa' {
 		| 'hidden'
 		| 'strikethrough';
 
-	export type KlasaConstantsClient = {
-		clientBaseDir: string;
-		schedule: { interval: 60000 };
-		cmdEditing: false;
-		cmdLogging: false;
-		cmdPrompt: false;
-		commandMessageLifetime: 1800;
-		console: {};
-		consoleEvents: {
-			debug: false;
-			error: true;
-			log: true;
-			verbose: false;
-			warn: true;
-			wtf: true;
-		};
-		ignoreBots: true;
-		ignoreSelf: true;
-		language: 'en-US';
-		pieceDefaults: {
-			commands: CommandOptions,
-			events: EventOptions,
-			extendables: ExtendableOptions,
-			finalizers: FinalizerOptions,
-			inhibitors: InhibitorOptions,
-			languages: LanguageOptions,
-			monitors: MonitorOptions,
-			providers: ProviderOptions
-		};
-		preserveConfigs: true;
-		promptTime: 30000;
-		provider: {};
-		readyMessage: (client: KlasaClient) => string;
-		typing: false;
-		customPromptDefaults: {
-			promptTime: 30000,
-			promptLimit: number,
-			quotedStringSupport: false
-		};
-	};
-
 	export type ReactionHandlerOptions = {
 		filter?: Function;
 		max?: number;
@@ -1928,7 +1848,7 @@ declare module 'klasa' {
 	};
 
 	export type TimestampObject = {
-		content?: string;
+		content: string | null;
 		type: string;
 	};
 
@@ -1945,29 +1865,27 @@ declare module 'klasa' {
 		time?: number;
 	};
 
-	export type emoji = string;
-
 	export type RichDisplayEmojisObject = {
-		first: emoji;
-		back: emoji;
-		forward: emoji;
-		last: emoji;
-		jump: emoji;
-		info: emoji;
-		stop: emoji;
-	};
+		first: EmojiResolvable;
+		back: EmojiResolvable;
+		forward: EmojiResolvable;
+		last: EmojiResolvable;
+		jump: EmojiResolvable;
+		info: EmojiResolvable;
+		stop: EmojiResolvable;
+	} & ObjectLiteral<EmojiResolvable>;
 
 	export type RichMenuEmojisObject = {
-		zero: emoji;
-		one: emoji;
-		two: emoji;
-		three: emoji;
-		four: emoji;
-		five: emoji;
-		six: emoji;
-		seven: emoji;
-		eight: emoji;
-		nine: emoji;
+		zero: EmojiResolvable;
+		one: EmojiResolvable;
+		two: EmojiResolvable;
+		three: EmojiResolvable;
+		four: EmojiResolvable;
+		five: EmojiResolvable;
+		six: EmojiResolvable;
+		seven: EmojiResolvable;
+		eight: EmojiResolvable;
+		nine: EmojiResolvable;
 	} & RichDisplayEmojisObject;
 
 	export type MenuOption = {
@@ -1987,27 +1905,32 @@ declare module 'klasa' {
 		time?: number;
 	};
 
-	type StringMappedType<T> = { [key: string]: T };
-
-	export type GuildSettings = StringMappedType<any>;
-	export type SchemaObject = StringMappedType<SchemaPiece>;
-	export type SchemaDefaults = StringMappedType<any>;
-
-	// TypeScript lacks of Proxy
-	export type Proxy<T> = {
-		get(): T;
-		set(value: T): void;
+	export type MentionRegex = {
+		userOrMember: RegExp;
+		channel: RegExp;
+		emoji: RegExp;
+		role: RegExp;
+		snowflake: RegExp;
 	};
 
-	export type PrimitiveType = string | number | boolean;
+	interface Stringifible {
+		toString(): string;
+	}
+
+	interface ObjectLiteral<T = any> {
+		[k: string]: T;
+	}
+
+	type Constructable<T> = new (...args: any[]) => T;
+
+	type PrimitiveType = string | number | boolean;
 
 	export type TitleCaseVariants = {
 		textchannel: 'TextChannel';
 		voicechannel: 'VoiceChannel';
 		categorychannel: 'CategoryChannel';
 		guildmember: 'GuildMember';
-		[key: string]: string;
-	};
+	} & ObjectLiteral<string>;
 
 //#endregion
 

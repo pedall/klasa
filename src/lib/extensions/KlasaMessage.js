@@ -1,5 +1,4 @@
-const { Structures, splitMessage, Collection, MessageAttachment, MessageEmbed } = require('discord.js');
-const { isObject } = require('../util/util');
+const { Structures, Collection, APIMessage, Permissions: { FLAGS } } = require('discord.js');
 
 module.exports = Structures.extend('Message', Message => {
 	/**
@@ -15,11 +14,11 @@ module.exports = Structures.extend('Message', Message => {
 			super(...args);
 
 			/**
-			 * The guild level configs for this context (guild || default)
+			 * The guild level settings for this context (guild || default)
 			 * @since 0.5.0
-			 * @type {Configuration}
+			 * @type {Settings}
 			 */
-			this.guildConfigs = this.guild ? this.guild.configs : this.client.gateways.guilds.defaults;
+			this.guildSettings = this.guild ? this.guild.settings : this.client.gateways.guilds.defaults;
 
 			/**
 			 * The command being run
@@ -51,9 +50,9 @@ module.exports = Structures.extend('Message', Message => {
 			this.prompter = null;
 
 			/**
-			 * The ids of the responses to this message
+			 * The responses to this message
 			 * @since 0.5.0
-			 * @type {external:Snowflake[]}
+			 * @type {external:KlasaMessage[]}
 			 * @private
 			 */
 			this._responses = [];
@@ -66,12 +65,7 @@ module.exports = Structures.extend('Message', Message => {
 		 * @readonly
 		 */
 		get responses() {
-			const responses = [];
-			for (const id of this._responses) {
-				const response = this.channel.messages.get(id);
-				if (response) responses.push(response);
-			}
-			return responses;
+			return this._responses.filter(msg => !msg.deleted);
 		}
 
 		/**
@@ -122,7 +116,19 @@ module.exports = Structures.extend('Message', Message => {
 		 */
 		get reactable() {
 			if (!this.guild) return true;
-			return this.channel.readable && this.permissionsFor(this.guild.me).has('ADD_REACTIONS');
+			return this.channel.readable && this.channel.permissionsFor(this.guild.me).has(FLAGS.ADD_REACTIONS, false);
+		}
+
+		/**
+		 * Gets the level id of this message (with respect to @{link Command#cooldownLevel})
+		 * @since 0.5.0
+		 * @type {?string}
+		 * @readonly
+		 * @private
+		 */
+		get levelID() {
+			if (!this.command) return null;
+			return this.guild ? this[this.command.cooldownLevel].id : this.author.id;
 		}
 
 		/**
@@ -133,7 +139,7 @@ module.exports = Structures.extend('Message', Message => {
 		 */
 		async prompt(text, time = 30000) {
 			const message = await this.channel.send(text);
-			const responses = await this.channel.awaitMessages(mes => mes.author === this.author, { time, max: 1 });
+			const responses = await this.channel.awaitMessages(msg => msg.author === this.author, { time, max: 1 });
 			message.delete();
 			if (responses.size === 0) throw this.language.get('MESSAGE_PROMPT_TIMEOUT');
 			return responses.first();
@@ -175,26 +181,33 @@ module.exports = Structures.extend('Message', Message => {
 		 * @returns {KlasaMessage|KlasaMessage[]}
 		 */
 		async sendMessage(content, options) {
-			// eslint-disable-next-line prefer-const
-			let { content: _content, ..._options } = this.constructor.handleOptions(content, options);
+			const combinedOptions = APIMessage.transformOptions(content, options);
 
-			if (typeof _options.files !== 'undefined') return this.channel.send(_content, _options);
-			if (Array.isArray(_content)) _content = _content.join('\n');
-			if (_options && _options.split) _content = splitMessage(_content, _options.split);
-			if (!Array.isArray(_content)) _content = [_content];
+			if ('files' in combinedOptions) return this.channel.send(combinedOptions);
+
+			const newMessages = new APIMessage(this.channel, combinedOptions).resolveData().split()
+				.map(mes => {
+					// Command editing should always remove embeds and content if none is provided
+					mes.data.embed = mes.data.embed || null;
+					mes.data.content = mes.data.content || null;
+					return mes;
+				});
 
 			const { responses } = this;
 			const promises = [];
-			const max = Math.max(_content.length, responses.length);
+			const max = Math.max(newMessages.length, responses.length);
 
 			for (let i = 0; i < max; i++) {
-				if (i >= _content.length) responses[i].delete();
-				else if (responses.length > i) promises.push(responses[i].edit(_content[i], _options));
-				else promises.push(this.channel.send(_content[i], _options));
+				if (i >= newMessages.length) responses[i].delete();
+				else if (responses.length > i) promises.push(responses[i].edit(newMessages[i]));
+				else promises.push(this.channel.send(newMessages[i]));
 			}
 
 			const newResponses = await Promise.all(promises);
-			this._responses = newResponses.map(res => res.id);
+
+			// Can't store the clones because deleted will never be true
+			this._responses = newMessages.map((val, i) => responses[i] || newResponses[i]);
+
 			return newResponses.length === 1 ? newResponses[0] : newResponses;
 		}
 
@@ -207,19 +220,19 @@ module.exports = Structures.extend('Message', Message => {
 		 * @returns {Promise<KlasaMessage|KlasaMessage[]>}
 		 */
 		sendEmbed(embed, content, options) {
-			return this.sendMessage({ ...this.constructor.combineContentOptions(content, options), embed });
+			return this.sendMessage(APIMessage.transformOptions(content, options, { embed }));
 		}
 
 		/**
 		 * Sends a codeblock message that will be editable via command editing (if nothing is attached)
 		 * @since 0.0.1
-		 * @param {string} lang The language of the codeblock
+		 * @param {string} code The language of the codeblock
 		 * @param {external:StringResolvable} content The content to send
 		 * @param {external:MessageOptions} [options] The D.JS message options
 		 * @returns {Promise<KlasaMessage|KlasaMessage[]>}
 		 */
-		sendCode(lang, content, options) {
-			return this.sendMessage({ ...this.constructor.combineContentOptions(content, options), code: lang });
+		sendCode(code, content, options) {
+			return this.sendMessage(APIMessage.transformOptions(content, options, { code }));
 		}
 
 		/**
@@ -231,6 +244,30 @@ module.exports = Structures.extend('Message', Message => {
 		 */
 		send(content, options) {
 			return this.sendMessage(content, options);
+		}
+
+		/**
+		 * Sends a message that will be editable via command editing (if nothing is attached)
+		 * @since 0.5.0
+		 * @param {string} key The Language key to send
+		 * @param {Array<*>} [localeArgs] The language arguments to pass
+		 * @param {external:MessageOptions} [options] The D.JS message options plus Language arguments
+		 * @returns {Promise<KlasaMessage|KlasaMessage[]>}
+		 */
+		sendLocale(key, localeArgs = [], options = {}) {
+			if (!Array.isArray(localeArgs)) [options, localeArgs] = [localeArgs, []];
+			return this.sendMessage(this.language.get(key, ...localeArgs), options);
+		}
+
+		/**
+		 * Since d.js is dumb and has 2 patch methods, this is for edits
+		 * @since 0.5.0
+		 * @param {*} data The data passed from the original constructor
+		 * @private
+		 */
+		patch(data) {
+			super.patch(data);
+			this.language = this.guild ? this.guild.language : this.client.languages.default;
 		}
 
 		/**
@@ -257,6 +294,7 @@ module.exports = Structures.extend('Message', Message => {
 		 * @property {Command} command The command run
 		 * @property {RegExp} prefix The prefix used
 		 * @property {number} prefixLength The length of the prefix used
+		 * @returns {this}
 		 * @private
 		 */
 		_registerCommand({ command, prefix, prefixLength }) {
@@ -265,48 +303,11 @@ module.exports = Structures.extend('Message', Message => {
 			this.prefixLength = prefixLength;
 			this.prompter = this.command.usage.createPrompt(this, {
 				quotedStringSupport: this.command.quotedStringSupport,
-				promptTime: this.command.promptTime,
-				promptLimit: this.command.promptLimit
+				time: this.command.promptTime,
+				limit: this.command.promptLimit
 			});
 			this.client.emit('commandRun', this, this.command, this.args);
-		}
-
-		/**
-		 * Merge the content with the options.
-		 * @since 0.5.0
-		 * @param {external:StringResolvable} [content] The content to send
-		 * @param {external:MessageOptions} [options] The D.JS message options
-		 * @returns {external:MessageOptions}
-		 * @private
-		 */
-		static combineContentOptions(content, options) {
-			if (!options) return isObject(content) ? content : { content };
-			return { ...options, content };
-		}
-
-		/**
-		 * Handle all send overloads.
-		 * @since 0.5.0
-		 * @param {external:StringResolvable|external:MessageEmbed|external:MessageAttachment} [content] The content to send
-		 * @param {external:MessageOptions} [options={}] The D.JS message options
-		 * @returns {external:MessageOptions}
-		 * @private
-		 */
-		static handleOptions(content, options = {}) {
-			if (content instanceof MessageEmbed) options.embed = content;
-			else if (content instanceof MessageAttachment) options.files = [content];
-			else if (isObject(content)) options = content;
-			else options = this.combineContentOptions(content, options);
-
-			if (options.split && typeof options.code !== 'undefined' && (typeof options.code !== 'boolean' || options.code === true)) {
-				if (typeof options.split === 'boolean') options.split = {};
-				options.split.prepend = `\`\`\`${typeof options.code !== 'boolean' ? options.code || '' : ''}\n`;
-				options.split.append = '\n```';
-			}
-
-			options.embed = options.embed || null;
-			options.content = options.content || null;
-			return options;
+			return this;
 		}
 
 	}

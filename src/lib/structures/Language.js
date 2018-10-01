@@ -12,10 +12,6 @@ const { mergeDefault, isClass } = require('../util/util');
 class Language extends Piece {
 
 	/**
-	 * @typedef {PieceOptions} LanguageOptions
-	 */
-
-	/**
 	 * The method to get language strings
 	 * @since 0.2.1
 	 * @param {string} term The string or function to look up
@@ -24,18 +20,16 @@ class Language extends Piece {
 	 */
 	get(term, ...args) {
 		if (!this.enabled && this !== this.store.default) return this.store.default.get(term, ...args);
+		const value = this.language[term];
 		/* eslint-disable new-cap */
-		if (!this.language[term]) {
-			if (this === this.store.default) return this.language.DEFAULT(term);
-			return [
-				`${this.language.DEFAULT(term)}`,
-				'',
-				`**${this.language.DEFAULT_LANGUAGE}:**`,
-				`${(args.length ? this.store.default.language[term](...args) : this.store.default.language[term]) || this.store.default.language.DEFAULT(term)}`
-			].join('\n');
+		switch (typeof value) {
+			case 'function': return value(...args);
+			case 'undefined':
+				if (this === this.store.default) return this.language.DEFAULT(term);
+				return `${this.language.DEFAULT(term)}\n\n**${this.language.DEFAULT_LANGUAGE}:**\n${this.store.default.get(term, ...args)}`;
+			default: return value;
 		}
 		/* eslint-enable new-cap */
-		return args.length ? this.language[term](...args) : this.language[term];
 	}
 
 	/**
@@ -45,15 +39,17 @@ class Language extends Piece {
 	 * @abstract
 	 */
 	async init() {
-		const loc = join(this.store.coreDir, ...this.file);
-		if (this.dir !== this.store.coreDir && await pathExists(loc)) {
-			try {
-				const CorePiece = require(loc);
-				if (!isClass(CorePiece)) return;
-				const coreLang = new CorePiece(this.client, this.store, this.file, true);
-				this.language = mergeDefault(coreLang.language, this.language);
-			} catch (error) {
-				return;
+		for (const core of this.store.coreDirectories) {
+			const loc = join(core, ...this.file);
+			if (this.dir !== core && await pathExists(loc)) {
+				try {
+					const CorePiece = require(loc);
+					if (!isClass(CorePiece)) return;
+					const coreLang = new CorePiece(this.client, this.store, this.file, true);
+					this.language = mergeDefault(coreLang.language, this.language);
+				} catch (error) {
+					return;
+				}
 			}
 		}
 		return;

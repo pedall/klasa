@@ -1,7 +1,9 @@
 const { mergeDefault } = require('../../util/util');
+const { join } = require('path');
 
 /**
  * The common class for all pieces
+ * @see Argument
  * @see Command
  * @see Event
  * @see Extendable
@@ -10,6 +12,8 @@ const { mergeDefault } = require('../../util/util');
  * @see Language
  * @see Monitor
  * @see Provider
+ * @see SqlProvider
+ * @see Serializer
  * @see Task
  */
 class Piece {
@@ -24,22 +28,13 @@ class Piece {
 	 * @since 0.0.1
 	 * @param {KlasaClient} client The klasa client
 	 * @param {Store} store The store this piece is for
-	 * @param {string} file The path from the pieces folder to the extendable file
-	 * @param {boolean} core If the piece is in the core directory or not
-	 * @param {PieceOptions} options The options for this piece
+	 * @param {string[]} file The path from the pieces folder to the extendable file
+	 * @param {string} directory The base directory to the pieces folder
+	 * @param {PieceOptions} [options={}] The options for this piece
 	 */
-	constructor(client, store, file, core, options = {}) {
+	constructor(client, store, file, directory, options = {}) {
 		const defaults = client.options.pieceDefaults[store.name];
 		if (defaults) options = mergeDefault(defaults, options);
-
-		/**
-		 * If the piece is in the core directory or not
-		 * @since 0.5.0
-		 * @name Event#core
-		 * @type {boolean}
-		 * @readonly
-		 */
-		Object.defineProperty(this, 'core', { value: core });
 
 		/**
 		 * The client this Piece was created with
@@ -75,6 +70,13 @@ class Piece {
 		 * @type {Store}
 		 */
 		this.store = store;
+
+		/**
+		 * The base directory this Piece is stored in
+		 * @since 0.5.0
+		 * @type {string}
+		 */
+		this.directory = directory;
 	}
 
 	/**
@@ -88,13 +90,13 @@ class Piece {
 	}
 
 	/**
-	 * The directory to where this event piece is stored
-	 * @since 0.0.1
+	 * The absolute path to this piece
+	 * @since 0.5.0
 	 * @type {string}
 	 * @readonly
 	 */
-	get dir() {
-		return this.core ? this.store.coreDir : this.store.userDir;
+	get path() {
+		return join(this.directory, ...this.file);
 	}
 
 	/**
@@ -103,7 +105,7 @@ class Piece {
 	 * @returns {Piece} The newly loaded piece
 	 */
 	async reload() {
-		const piece = this.store.load(this.file, this.core);
+		const piece = this.store.load(this.directory, this.file);
 		await piece.init();
 		if (this.client.listenerCount('pieceReloaded')) this.client.emit('pieceReloaded', piece);
 		return piece;
@@ -169,8 +171,9 @@ class Piece {
 	 */
 	toJSON() {
 		return {
-			dir: this.dir,
+			directory: this.directory,
 			file: this.file,
+			path: this.path,
 			name: this.name,
 			type: this.type,
 			enabled: this.enabled

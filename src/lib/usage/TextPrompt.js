@@ -1,4 +1,5 @@
 const { mergeDefault } = require('../util/util');
+const { Collection } = require('discord.js');
 const quotes = ['"', "'", '“”', '‘’'];
 
 /**
@@ -8,19 +9,19 @@ class TextPrompt {
 
 	/**
 	 * @typedef {Object} TextPromptOptions
-	 * @property {number} [promptLimit=Infinity] The number of re-prompts before this TextPrompt gives up
-	 * @property {number} [promptTime=30000] The time-limit for re-prompting
+	 * @property {number} [limit=Infinity] The number of re-prompts before this TextPrompt gives up
+	 * @property {number} [time=30000] The time-limit for re-prompting
 	 * @property {boolean} [quotedStringSupport=false] Whether this prompt should respect quoted strings
 	 */
 
 	/**
 	 * @since 0.5.0
-	 * @param {KlasaMessage} msg The message this prompt is for
+	 * @param {KlasaMessage} message The message this prompt is for
 	 * @param {Usage} usage The usage for this prompt
-	 * @param {TextPromptOptions} options The options of this prompt
+	 * @param {TextPromptOptions} [options={}] The options of this prompt
 	 */
-	constructor(msg, usage, options) {
-		options = mergeDefault(msg.client.options.customPromptDefaults, options);
+	constructor(message, usage, options = {}) {
+		options = mergeDefault(message.client.options.customPromptDefaults, options);
 
 		/**
 		 * The client this TextPrompt was created with
@@ -29,14 +30,14 @@ class TextPrompt {
 		 * @type {KlasaClient}
 		 * @readonly
 		 */
-		Object.defineProperty(this, 'client', { value: msg.client });
+		Object.defineProperty(this, 'client', { value: message.client });
 
 		/**
 		 * The message this prompt is for
 		 * @since 0.5.0
 		 * @type {KlasaMessage}
 		 */
-		this.message = msg;
+		this.message = message;
 
 		/**
 		 * The usage for this prompt
@@ -78,14 +79,14 @@ class TextPrompt {
 		 * @since 0.5.0
 		 * @type {number}
 		 */
-		this.promptTime = options.promptTime;
+		this.time = options.time;
 
 		/**
 		 * The number of re-prompts before this TextPrompt gives up
 		 * @since 0.5.0
 		 * @type {number}
 		 */
-		this.promptLimit = options.promptLimit;
+		this.limit = options.limit;
 
 		/**
 		 * Whether this prompt should respect quoted strings
@@ -125,6 +126,13 @@ class TextPrompt {
 		 * @private
 		 */
 		this._currentUsage = {};
+
+		/**
+		 * A cache of the users responses
+		 * @since 0.5.0
+		 * @type external:Collection
+		 */
+		this.responses = new Collection();
 	}
 
 	/**
@@ -134,7 +142,8 @@ class TextPrompt {
 	 * @returns {any[]} The parameters resolved
 	 */
 	async run(prompt) {
-		const message = await this.message.prompt(prompt, this.promptTime);
+		const message = await this.message.prompt(prompt, this.time);
+		this.responses.set(message.id, message);
 		this._setup(message.content);
 		return this.validateArgs();
 	}
@@ -150,9 +159,11 @@ class TextPrompt {
 		this._prompted++;
 		if (this.typing) this.message.channel.stopTyping();
 		const message = await this.message.prompt(
-			this.message.language.get('MONITOR_COMMAND_HANDLER_REPROMPT', `<@!${this.message.author.id}>`, prompt, this.promptTime / 1000),
-			this.promptTime
+			this.message.language.get('MONITOR_COMMAND_HANDLER_REPROMPT', `<@!${this.message.author.id}>`, prompt, this.time / 1000),
+			this.time
 		);
+
+		this.responses.set(message.id, message);
 
 		if (message.content.toLowerCase() === 'abort') throw this.message.language.get('MONITOR_COMMAND_HANDLER_ABORTED');
 
@@ -176,9 +187,10 @@ class TextPrompt {
 
 		try {
 			message = await this.message.prompt(
-				this.message.language.get('MONITOR_COMMAND_HANDLER_REPEATING_REPROMPT', `<@!${this.message.author.id}>`, this._currentUsage.possibles[0].name, this.promptTime / 1000),
-				this.promptTime
+				this.message.language.get('MONITOR_COMMAND_HANDLER_REPEATING_REPROMPT', `<@!${this.message.author.id}>`, this._currentUsage.possibles[0].name, this.time / 1000),
+				this.time
 			);
+			this.responses.set(message.id, message);
 		} catch (err) {
 			return this.validateArgs();
 		}
@@ -225,16 +237,17 @@ class TextPrompt {
 	async multiPossibles(index) {
 		const possible = this._currentUsage.possibles[index];
 		const custom = this.usage.customResolvers[possible.type];
+		const resolver = this.client.arguments.get(custom ? 'custom' : possible.type);
 
 		if (possible.name in this.flags) this.args.splice(this.params.length, 0, this.flags[possible.name]);
-		if (!this.client.argResolver[possible.type] && !custom) {
+		if (!resolver) {
 			this.client.emit('warn', `Unknown Argument Type encountered: ${possible.type}`);
 			if (this._currentUsage.possibles.length === 1) return this.pushParam(undefined);
 			return this.multiPossibles(++index);
 		}
 
 		try {
-			const res = await this.client.argResolver[custom ? 'custom' : possible.type](this.args[this.params.length], possible, this.message, custom);
+			const res = await resolver.run(this.args[this.params.length], possible, this.message, custom);
 			if (typeof res === 'undefined' && this._required === 1) this.args.splice(this.params.length, 0, undefined);
 			return this.pushParam(res);
 		} catch (err) {
@@ -276,7 +289,7 @@ class TextPrompt {
 	 */
 	async handleError(err) {
 		this.args.splice(this.params.length, 1, null);
-		if (this.promptLimit && this._prompted < this.promptLimit) return this.reprompt(err);
+		if (this.limit && this._prompted < this.limit) return this.reprompt(err);
 		throw err;
 	}
 
@@ -317,11 +330,11 @@ class TextPrompt {
 	 */
 	static getFlags(content, delim) {
 		const flags = {};
-		content = content.replace(TextPrompt.flagRegex, (match, fl, ...quote) => {
+		content = content.replace(this.flagRegex, (match, fl, ...quote) => {
 			flags[fl] = (quote.slice(0, -2).find(el => el) || fl).replace(/\\/g, '');
 			return '';
 		});
-		if (delim) content = content.replace(TextPrompt.delims.get(delim) || TextPrompt.generateNewDelim(delim), '$1').trim();
+		if (delim) content = content.replace(this.delims.get(delim) || this.generateNewDelim(delim), '$1').trim();
 		return { content, flags };
 	}
 
@@ -382,7 +395,7 @@ class TextPrompt {
 	 */
 	static generateNewDelim(delim) {
 		const regex = new RegExp(`(${delim})(?:${delim})+`, 'g');
-		TextPrompt.delims.set(delim, regex);
+		this.delims.set(delim, regex);
 		return regex;
 	}
 

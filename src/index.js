@@ -8,11 +8,6 @@ module.exports = {
 	KlasaMessage: require('./lib/extensions/KlasaMessage'),
 	KlasaUser: require('./lib/extensions/KlasaUser'),
 
-	// lib/parsers
-	ArgResolver: require('./lib/parsers/ArgResolver'),
-	Resolver: require('./lib/parsers/Resolver'),
-	SettingResolver: require('./lib/parsers/SettingResolver'),
-
 	// lib/permissions
 	PermissionLevels: require('./lib/permissions/PermissionLevels'),
 
@@ -21,19 +16,23 @@ module.exports = {
 	ScheduledTask: require('./lib/schedule/ScheduledTask'),
 
 	// lib/settings
-	Configuration: require('./lib/settings/Configuration'),
+	Settings: require('./lib/settings/Settings'),
 	Gateway: require('./lib/settings/Gateway'),
 	GatewayDriver: require('./lib/settings/GatewayDriver'),
 	GatewayStorage: require('./lib/settings/GatewayStorage'),
-	Schema: require('./lib/settings/Schema'),
-	SchemaFolder: require('./lib/settings/SchemaFolder'),
-	SchemaPiece: require('./lib/settings/SchemaPiece'),
+	Schema: require('./lib/settings/schema/Schema'),
+	SchemaFolder: require('./lib/settings/schema/SchemaFolder'),
+	SchemaPiece: require('./lib/settings/schema/SchemaPiece'),
 
 	// lib/structures/base
+	AliasPiece: require('./lib/structures/base/AliasPiece'),
+	AliasStore: require('./lib/structures/base/AliasStore'),
 	Piece: require('./lib/structures/base/Piece'),
 	Store: require('./lib/structures/base/Store'),
 
 	// lib/structures
+	Argument: require('./lib/structures/Argument'),
+	ArgumentStore: require('./lib/structures/ArgumentStore'),
 	Command: require('./lib/structures/Command'),
 	CommandStore: require('./lib/structures/CommandStore'),
 	Event: require('./lib/structures/Event'),
@@ -48,8 +47,12 @@ module.exports = {
 	LanguageStore: require('./lib/structures/LanguageStore'),
 	Monitor: require('./lib/structures/Monitor'),
 	MonitorStore: require('./lib/structures/MonitorStore'),
+	MultiArgument: require('./lib/structures/MultiArgument'),
 	Provider: require('./lib/structures/Provider'),
 	ProviderStore: require('./lib/structures/ProviderStore'),
+	Serializer: require('./lib/structures/Serializer'),
+	SerializerStore: require('./lib/structures/SerializerStore'),
+	SQLProvider: require('./lib/structures/SQLProvider'),
 	Task: require('./lib/structures/Task'),
 	TaskStore: require('./lib/structures/TaskStore'),
 
@@ -67,6 +70,9 @@ module.exports = {
 	constants: require('./lib/util/constants'),
 	Cron: require('./lib/util/Cron'),
 	Duration: require('./lib/util/Duration'),
+	QueryBuilder: require('./lib/util/QueryBuilder'),
+	RateLimit: require('./lib/util/RateLimit'),
+	RateLimitManager: require('./lib/util/RateLimitManager'),
 	ReactionHandler: require('./lib/util/ReactionHandler'),
 	RichDisplay: require('./lib/util/RichDisplay'),
 	RichMenu: require('./lib/util/RichMenu'),
@@ -88,7 +94,7 @@ module.exports = {
  * @see {@link https://discord.js.org/#/docs/main/master/class/Client}
  */
 /**
- * @external DiscordJSConfig
+ * @external DiscordClientOptions
  * @see {@link https://discord.js.org/#/docs/main/master/typedef/ClientOptions}
  */
 /**

@@ -1,4 +1,4 @@
-const { TIME: { DAY, CRON: { allowedNum, partRegex, predefined, tokens, tokensRegex } } } = require('./constants');
+const { TIME: { DAY, CRON: { allowedNum, partRegex, wildcardRegex, predefined, tokens, tokensRegex } } } = require('./constants');
 
 /**
  * Handles Cron strings and generates dates based on the cron string provided.
@@ -19,25 +19,27 @@ class Cron {
 	/**
 	 * Get the next date that matches with the current pattern
 	 * @since 0.5.0
-	 * @param {Date} [zDay=new Date()] The Date instance to compare with
+	 * @param {Date} [outset=new Date()] The Date instance to compare with
 	 * @param {boolean} [origin=true] Whether this next call is origin
 	 * @returns {Date}
 	 */
-	next(zDay = new Date(), origin = true) {
-		if (!this.days.includes(zDay.getUTCDate()) || !this.months.includes(zDay.getUTCMonth() + 1) || !this.dows.includes(zDay.getUTCDay())) return this.next(new Date(zDay.getTime() + DAY), false);
-		if (!origin) return new Date(Date.UTC(zDay.getUTCFullYear(), zDay.getUTCMonth(), zDay.getUTCDate(), this.hours[0], this.minutes[0]));
+	next(outset = new Date(), origin = true) {
+		if (!this.days.includes(outset.getUTCDate()) || !this.months.includes(outset.getUTCMonth() + 1) || !this.dows.includes(outset.getUTCDay())) {
+			return this.next(new Date(outset.getTime() + DAY), false);
+		}
+		if (!origin) return new Date(Date.UTC(outset.getUTCFullYear(), outset.getUTCMonth(), outset.getUTCDate(), this.hours[0], this.minutes[0]));
 
-		const now = new Date(zDay.getTime() + 60000);
+		const now = new Date(outset.getTime() + 60000);
 
 		for (const hour of this.hours) {
 			if (hour < now.getUTCHours()) continue;
 			for (const minute of this.minutes) {
 				if (hour === now.getUTCHours() && minute < now.getUTCMinutes()) continue;
-				return new Date(Date.UTC(zDay.getUTCFullYear(), zDay.getUTCMonth(), zDay.getUTCDate(), hour, minute));
+				return new Date(Date.UTC(outset.getUTCFullYear(), outset.getUTCMonth(), outset.getUTCDate(), hour, minute));
 			}
 		}
 
-		return this.next(new Date(zDay.getTime() + DAY), false);
+		return this.next(new Date(outset.getTime() + DAY), false);
 	}
 
 	/**
@@ -50,9 +52,9 @@ class Cron {
 	static _normalize(cron) {
 		if (cron in predefined) return predefined[cron];
 		const now = new Date();
-		cron = cron.split(' ').map((val, i) => {
-			if (val === 'h') return Math.floor(Math.random() * (allowedNum[i][1] + 1));
-			if (val === '?') {
+		cron = cron.split(' ').map((val, i) => val.replace(wildcardRegex, match => {
+			if (match === 'h') return Math.floor(Math.random() * (allowedNum[i][1] + 1));
+			if (match === '?') {
 				switch (i) {
 					case 0: return now.getUTCMinutes();
 					case 1: return now.getUTCHours();
@@ -61,8 +63,8 @@ class Cron {
 					case 4: return now.getUTCDay();
 				}
 			}
-			return val;
-		}).join(' ');
+			return match;
+		})).join(' ');
 		return cron.replace(tokensRegex, match => tokens[match]);
 	}
 

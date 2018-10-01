@@ -1,13 +1,24 @@
 const { promisify } = require('util');
 const { exec } = require('child_process');
+const { Guild, GuildChannel, Message } = require('discord.js');
+
 const zws = String.fromCharCode(8203);
-const has = (ob, ke) => Object.prototype.hasOwnProperty.call(ob, ke);
 let sensitivePattern;
+const TOTITLECASE = /[A-Za-zÀ-ÖØ-öø-ÿ]\S*/g;
+const REGEXPESC = /[-/\\^$*+?.()|[\]{}]/g;
 
 /**
  * Contains static methods to be used throughout klasa
  */
 class Util {
+
+	/**
+	 * @typedef {(KlasaGuild|KlasaMessage|external:GuildChannel)} GuildResolvable
+	 */
+
+	/**
+	 * @typedef {(string|*)} Stringable
+	 */
 
 	/**
 	 * This class may not be initiated with new
@@ -23,7 +34,7 @@ class Util {
 	 * Makes a codeblock markup string
 	 * @since 0.0.1
 	 * @param {string} lang The codeblock language
-	 * @param {string} expression The expression to be wrapped in the codeblock
+	 * @param {Stringable} expression The expression to be wrapped in the codeblock
 	 * @returns {string}
 	 */
 	static codeBlock(lang, expression) {
@@ -37,8 +48,7 @@ class Util {
 	 * @returns {string}
 	 */
 	static clean(text) {
-		if (typeof text === 'string') return text.replace(sensitivePattern, '「ｒｅｄａｃｔｅｄ」').replace(/`/g, `\`${zws}`).replace(/@/g, `@${zws}`);
-		return text;
+		return text.replace(sensitivePattern, '「ｒｅｄａｃｔｅｄ」').replace(/`/g, `\`${zws}`).replace(/@/g, `@${zws}`);
 	}
 
 	/**
@@ -48,11 +58,7 @@ class Util {
 	 * @param {KlasaClient} client The Klasa client
 	 */
 	static initClean(client) {
-		const patterns = [];
-		if (client.token) patterns.push(client.token);
-		if (client.user.email) patterns.push(client.user.email);
-		if (client.password) patterns.push(client.password);
-		sensitivePattern = new RegExp(patterns.join('|'), 'gi');
+		sensitivePattern = new RegExp(Util.regExpEsc(client.token), 'gi');
 	}
 
 	/**
@@ -62,7 +68,7 @@ class Util {
 	 * @returns {string}
 	 */
 	static toTitleCase(str) {
-		return str.replace(/[A-Za-zÀ-ÖØ-öø-ÿ]\S*/g, (txt) => Util.titleCaseVariants[txt] || txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
+		return str.replace(TOTITLECASE, (txt) => Util.titleCaseVariants[txt] || txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
 	}
 
 	/**
@@ -72,7 +78,23 @@ class Util {
 	 * @returns {string}
 	 */
 	static regExpEsc(str) {
-		return str.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+		return str.replace(REGEXPESC, '\\$&');
+	}
+
+	/**
+	 * Splits up an array into chunks
+	 * @since 0.5.0
+	 * @param {any[]} entries The object to be merged
+	 * @param {number} chunkSize The object to merge
+	 * @returns {any[]}
+	 */
+	static chunk(entries, chunkSize) {
+		if (!Array.isArray(entries)) throw new TypeError('entries is not an array.');
+		if (!Number.isInteger(chunkSize)) throw new TypeError('chunkSize is not an integer.');
+		const clone = entries.slice();
+		const chunks = [];
+		while (clone.length) chunks.push(clone.splice(0, chunkSize));
+		return chunks;
 	}
 
 	/**
@@ -95,41 +117,28 @@ class Util {
 	 */
 	static deepClone(source) {
 		// Check if it's a primitive (with exception of function and null, which is typeof object)
-		if (typeof source !== 'object' || source === null) return source;
+		if (source === null || Util.isPrimitive(source)) return source;
 		if (Array.isArray(source)) {
-			const output = new Array(source.length);
-			for (let i = 0; i < source.length; i++) output[i] = Util.deepClone(source[i]);
+			const output = [];
+			for (const value of source) output.push(Util.deepClone(value));
 			return output;
 		}
 		if (Util.isObject(source)) {
 			const output = {};
-			for (const key in source) output[key] = Util.deepClone(source[key]);
+			for (const [key, value] of Object.entries(source)) output[key] = Util.deepClone(value);
 			return output;
 		}
-		if (source instanceof Map || source instanceof WeakMap) {
+		if (source instanceof Map) {
 			const output = new source.constructor();
 			for (const [key, value] of source.entries()) output.set(key, Util.deepClone(value));
 			return output;
 		}
-		if (source instanceof Set || source instanceof WeakSet) {
+		if (source instanceof Set) {
 			const output = new source.constructor();
 			for (const value of source.values()) output.add(Util.deepClone(value));
 			return output;
 		}
 		return source;
-	}
-
-	/**
-	 * Applies an interface to a class
-	 * @since 0.1.1
-	 * @param {Object} base The interface to apply to a structure
-	 * @param {Object} structure The structure to apply the interface to
-	 * @param {string[]} [skips=[]] The methods to skip when applying this interface
-	 */
-	static applyToClass(base, structure, skips = []) {
-		for (const method of Object.getOwnPropertyNames(base.prototype)) {
-			if (!skips.includes(method)) Object.defineProperty(structure.prototype, method, Object.getOwnPropertyDescriptor(base.prototype, method));
-		}
 	}
 
 	/**
@@ -150,9 +159,8 @@ class Util {
 	 */
 	static isClass(input) {
 		return typeof input === 'function' &&
-			typeof input.constructor !== 'undefined' &&
-			typeof input.constructor.constructor.toString === 'function' &&
-			input.prototype.constructor.toString().substring(0, 5) === 'class';
+			typeof input.prototype === 'object' &&
+			input.toString().substring(0, 5) === 'class';
 	}
 
 	/**
@@ -162,7 +170,7 @@ class Util {
 	 * @returns {boolean}
 	 */
 	static isObject(input) {
-		return Object.prototype.toString.call(input) === '[object Object]';
+		return input && input.constructor === Object;
 	}
 
 	/**
@@ -176,13 +184,25 @@ class Util {
 	}
 
 	/**
+	 * Check whether a value is a primitive
+	 * @since 0.5.0
+	 * @param {*} value The value to check
+	 * @returns {boolean}
+	 */
+	static isPrimitive(value) {
+		return Util.PRIMITIVE_TYPES.includes(typeof value);
+	}
+
+	/**
 	 * Verify if an object is a promise.
 	 * @since 0.5.0
 	 * @param {Promise} input The promise to verify
 	 * @returns {boolean}
 	 */
 	static isThenable(input) {
-		return (input instanceof Promise) || (Boolean(input) && Util.isFunction(input.then) && Util.isFunction(input.catch));
+		if (!input) return false;
+		return (input instanceof Promise) ||
+			(input !== Promise.prototype && Util.isFunction(input.then) && Util.isFunction(input.catch));
 	}
 
 	/**
@@ -200,57 +220,64 @@ class Util {
 	}
 
 	/**
-	 * Get the identifier of a value.
-	 * @since 0.5.0
-	 * @param {*} value The value to get the identifier from
-	 * @returns {?(string|number|boolean)}
-	 */
-	static getIdentifier(value) {
-		if (['string', 'number', 'boolean'].includes(typeof value)) return value;
-		if (Util.isObject(value)) {
-			if ('id' in value) return value.id;
-			if ('name' in value) return value.name;
-		}
-		return null;
-	}
-
-	/**
 	 * Turn a dotted path into a json object.
 	 * @since 0.5.0
 	 * @param {string} path The dotted path
 	 * @param {*} value The value
+	 * @param {Object<string, *>} [obj = {}] The object to edit
 	 * @returns {*}
 	 */
-	static makeObject(path, value) {
-		if (path.indexOf('.') === -1) return { [path]: value };
-		const object = {};
-		const route = path.split('.');
-		const lastKey = route.pop();
-		let reference = object;
-		for (const key of route) reference = reference[key] = {};
-		reference[lastKey] = value;
-		return object;
+	static makeObject(path, value, obj = {}) {
+		if (path.indexOf('.') === -1) {
+			obj[path] = value;
+		} else {
+			const route = path.split('.');
+			const lastKey = route.pop();
+			let reference = obj;
+			for (const key of route) {
+				if (!reference[key]) reference[key] = {};
+				reference = reference[key];
+			}
+			reference[lastKey] = value;
+		}
+		return obj;
 	}
 
 	/**
-	 * Compare if both arrays are equal
-	 * @param {any[]} arr1 The first array to compare
-	 * @param {any[]} arr2 The second array to compare
-	 * @param {boolean} clone Whether this check should clone the second array
-	 * @returns {boolean}
+	 * Convert an object to a tuple
+	 * @since 0.5.0
+	 * @param {Object<string, *>} object The object to convert
+	 * @param {string} [prefix=''] The prefix for the key
+	 * @returns {Array<Array<*>>}
 	 */
-	static arraysEqual(arr1, arr2, clone = false) {
-		if (arr1 === arr2) return true;
-		if (arr1.length !== arr2.length) return false;
-		// Clone the array
-		if (clone) arr2 = arr2.slice(0);
-
-		for (const item of arr1) {
-			const ind = arr2.indexOf(item);
-			if (ind !== -1) arr2.splice(ind, 1);
+	static objectToTuples(object, prefix = '') {
+		const entries = [];
+		for (const [key, value] of Object.entries(object)) {
+			if (Util.isObject(value)) {
+				entries.push(...Util.objectToTuples(value, `${prefix}${key}.`));
+			} else {
+				entries.push([`${prefix}${key}`, value]);
+			}
 		}
 
-		return !arr2.length;
+		return entries;
+	}
+
+	/**
+	 * Compare if both arrays are strictly equal
+	 * @since 0.5.0
+	 * @param {any[]} arr1 The first array to compare
+	 * @param {any[]} arr2 The second array to compare
+	 * @returns {boolean}
+	 */
+	static arraysStrictEquals(arr1, arr2) {
+		if (arr1 === arr2) return true;
+		if (arr1.length !== arr2.length) return false;
+
+		for (let i = 0; i < arr1.length; i++) {
+			if (arr1[i] !== arr2[i]) return false;
+		}
+		return true;
 	}
 
 	/**
@@ -262,16 +289,33 @@ class Util {
 	 * @private
 	 */
 	static mergeDefault(def, given) {
-		if (!given) return def;
+		if (!given) return Util.deepClone(def);
 		for (const key in def) {
-			if (!has(given, key) || given[key] === undefined) {
-				given[key] = Array.isArray(def[key]) ? def[key].slice(0) : def[key];
-			} else if (!Array.isArray(given[key]) && given[key] === Object(given[key])) {
-				given[key] = Util.mergeDefault(def[key], given[key]);
-			}
+			if (typeof given[key] === 'undefined') given[key] = Util.deepClone(def[key]);
+			else if (Util.isObject(given[key])) given[key] = Util.mergeDefault(def[key], given[key]);
 		}
 
 		return given;
+	}
+
+	/**
+	 * Resolves a guild
+	 * @since 0.5.0
+	 * @param {KlasaClient} client The KlasaClient
+	 * @param {GuildResolvable} guild A guild resolvable
+	 * @returns {?KlasaGuild}
+	 * @private
+	 */
+	static resolveGuild(client, guild) {
+		const type = typeof guild;
+		if (type === 'object' && guild !== null) {
+			if (guild instanceof Guild) return guild;
+			if ((guild instanceof GuildChannel) ||
+				(guild instanceof Message)) return guild.guild;
+		} else if (type === 'string' && /^\d{17,19}$/.test(guild)) {
+			return client.guilds.get(guild) || null;
+		}
+		return null;
 	}
 
 }
@@ -323,5 +367,13 @@ Util.titleCaseVariants = {
 	categorychannel: 'CategoryChannel',
 	guildmember: 'GuildMember'
 };
+
+/**
+ * The primitive types
+ * @since 0.5.0
+ * @type {string[]}
+ * @static
+ */
+Util.PRIMITIVE_TYPES = ['string', 'bigint', 'number', 'boolean'];
 
 module.exports = Util;

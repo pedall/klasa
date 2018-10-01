@@ -10,10 +10,7 @@ const { Provider } = require('klasa');
 module.exports = class extends Provider {
 
 	constructor(...args) {
-		super(...args, {
-			name: 'providerName',
-			description: 'Allows you to use DB functionality throughout Klasa'
-		});
+		super(...args, { name: 'providerName' });
 	}
 
 	init() {
@@ -76,14 +73,6 @@ module.exports = class extends Provider {
 		// Update an entry from a table
 	}
 
-	updateValue(table, path, newValue) {
-		// Update the value of an object/column in all entries from a table
-	}
-
-	removeValue(table, path) {
-		// Remove the value of an object/column in all entries from a table
-	}
-
 	replace(table, entryID, data) {
 		// Perform a destructive write, where the previous data gets overwritten by the new one
 	}
@@ -98,15 +87,12 @@ module.exports = class extends Provider {
 
 The example above is the JSON provider used in klasa, and interfacing with the {@link SettingsGateway}.
 
-## Configuration
+## Options
 
 | Name            | Default       | Type    | Description                                  |
 | --------------- | ------------- | ------- | -------------------------------------------- |
 | **name**        | `theFileName` | string  | The name of the provider                     |
 | **enabled**     | `true`        | boolean | Whether the provider is enabled or not       |
-| **description** | `''`          | string  | The provider description                     |
-| **sql**         | `false`       | boolean | If the provider provides to a sql datasource |
-| **cache**       | `false`       | boolean | Whether the provider is meant for caching    |
 
 ## Accessing Providers
 
@@ -116,6 +102,7 @@ for each provider added, based on its `name`. So for example if you have it set 
 
 ## Further Reading:
 
+- {@tutorial CreatingArguments}
 - {@tutorial CreatingCommands}
 - {@tutorial CreatingEvents}
 - {@tutorial CreatingExtendables}
@@ -123,4 +110,6 @@ for each provider added, based on its `name`. So for example if you have it set 
 - {@tutorial CreatingInhibitors}
 - {@tutorial CreatingLanguages}
 - {@tutorial CreatingMonitors}
+- {@tutorial CreatingSerializers}
+- {@tutorial CreatingSQLProviders}
 - {@tutorial CreatingTasks}

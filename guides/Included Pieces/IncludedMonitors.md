@@ -8,6 +8,7 @@ The command handler for Klasa.
 
 ## Further Reading:
 
+- {@tutorial IncludedArguments}
 - {@tutorial IncludedCommands}
 - {@tutorial IncludedEvents}
 - {@tutorial IncludedExtendables}
@@ -15,4 +16,5 @@ The command handler for Klasa.
 - {@tutorial IncludedInhibitors}
 - {@tutorial IncludedLanguages}
 - {@tutorial IncludedProviders}
+- {@tutorial IncludedSerializers}
 - {@tutorial IncludedTasks}

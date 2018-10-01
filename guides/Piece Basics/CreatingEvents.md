@@ -33,7 +33,7 @@ module.exports = class extends Event {
 
 Where `...params` are arguments you would *normally* get from those events. For example, while the `ready` event would only have none, the `guildMemberAdd` event would be `member`.
 
-## Configuration
+## Options
 
 | Name        | Default       | Type         | Description                         |
 | ----------- | ------------- | ------------ | ----------------------------------- |
@@ -45,6 +45,7 @@ Where `...params` are arguments you would *normally* get from those events. For 
 
 ## Further Reading:
 
+- {@tutorial CreatingArguments}
 - {@tutorial CreatingCommands}
 - {@tutorial CreatingExtendables}
 - {@tutorial CreatingFinalizers}
@@ -52,4 +53,6 @@ Where `...params` are arguments you would *normally* get from those events. For 
 - {@tutorial CreatingLanguages}
 - {@tutorial CreatingMonitors}
 - {@tutorial CreatingProviders}
+- {@tutorial CreatingSerializers}
+- {@tutorial CreatingSQLProviders}
 - {@tutorial CreatingTasks}

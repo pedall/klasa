@@ -6,7 +6,7 @@ module.exports = class extends Provider {
 
 	constructor(...args) {
 		super(...args);
-		this.baseDir = resolve(this.client.clientBaseDir, 'bwd', 'provider', 'json');
+		this.baseDirectory = resolve(this.client.userBaseDirectory, 'bwd', 'provider', 'json');
 	}
 
 	/**
@@ -14,7 +14,7 @@ module.exports = class extends Provider {
 	 * @private
 	 */
 	async init() {
-		await fs.ensureDir(this.baseDir).catch(err => this.client.emit('error', err));
+		await fs.ensureDir(this.baseDirectory).catch(err => this.client.emit('error', err));
 	}
 
 	/* Table methods */
@@ -25,7 +25,7 @@ module.exports = class extends Provider {
 	 * @returns {Promise<boolean>}
 	 */
 	hasTable(table) {
-		return fs.pathExists(resolve(this.baseDir, table));
+		return fs.pathExists(resolve(this.baseDirectory, table));
 	}
 
 	/**
@@ -34,7 +34,7 @@ module.exports = class extends Provider {
 	 * @returns {Promise<void>}
 	 */
 	createTable(table) {
-		return fs.mkdir(resolve(this.baseDir, table));
+		return fs.mkdir(resolve(this.baseDirectory, table));
 	}
 
 	/**
@@ -44,7 +44,7 @@ module.exports = class extends Provider {
 	 */
 	deleteTable(table) {
 		return this.hasTable(table)
-			.then(exists => exists ? fs.emptyDir(resolve(this.baseDir, table)).then(() => fs.remove(resolve(this.baseDir, table))) : null);
+			.then(exists => exists ? fs.emptyDir(resolve(this.baseDirectory, table)).then(() => fs.remove(resolve(this.baseDirectory, table))) : null);
 	}
 
 	/* Document methods */
@@ -52,22 +52,19 @@ module.exports = class extends Provider {
 	/**
 	 * Get all documents from a directory.
 	 * @param {string} table The name of the directory to fetch from
-	 * @param {boolean} [nice=false] Whether the provider should update all entries at the same time or politely update them sequentially
+	 * @param {string[]} [entries] The entries to download, defaults to all keys in the directory
 	 * @returns {Object[]}
 	 */
-	async getAll(table, nice = false) {
-		const dir = resolve(this.baseDir, table);
-		const files = await fs.readdir(dir);
-
-		if (nice) {
-			const documents = [];
-			for (let i = 0; i < files.length; i++) {
-				if (files[i].endsWith('.json')) await fs.readJSON(resolve(dir, files[i])).then(documents.push);
-			}
-			return documents;
-		} else {
-			return Promise.all(files.filter(file => file.endsWith('.json')).map(file => fs.readJSON(resolve(dir, file))));
+	async getAll(table, entries) {
+		if (!Array.isArray(entries) || !entries.length) entries = await this.getKeys(table);
+		if (entries.length < 5000) {
+			return Promise.all(entries.map(this.get.bind(this, table)));
 		}
+
+		const chunks = util.chunk(entries, 5000);
+		const output = [];
+		for (const chunk of chunks) output.push(...await Promise.all(chunk.map(this.get.bind(this, table))));
+		return output;
 	}
 
 	/**
@@ -76,11 +73,10 @@ module.exports = class extends Provider {
 	 * @returns {string[]}
 	 */
 	async getKeys(table) {
-		const dir = resolve(this.baseDir, table);
+		const dir = resolve(this.baseDirectory, table);
 		const filenames = await fs.readdir(dir);
 		const files = [];
-		for (let i = 0; i < filenames.length; i++) {
-			const filename = filenames[i];
+		for (const filename of filenames) {
 			if (filename.endsWith('.json')) files.push(filename.slice(0, filename.length - 5));
 		}
 		return files;
@@ -89,21 +85,21 @@ module.exports = class extends Provider {
 	/**
 	 * Get a document from a directory.
 	 * @param {string} table The name of the directory
-	 * @param {string} document The document name
+	 * @param {string} id The document name
 	 * @returns {Promise<?Object>}
 	 */
-	get(table, document) {
-		return fs.readJSON(resolve(this.baseDir, table, `${document}.json`)).catch(() => null);
+	get(table, id) {
+		return fs.readJSON(resolve(this.baseDirectory, table, `${id}.json`)).catch(() => null);
 	}
 
 	/**
 	 * Check if the document exists.
 	 * @param {string} table The name of the directory
-	 * @param {string} document The document name
+	 * @param {string} id The document name
 	 * @returns {Promise<boolean>}
 	 */
-	has(table, document) {
-		return fs.pathExists(resolve(this.baseDir, table, `${document}.json`));
+	has(table, id) {
+		return fs.pathExists(resolve(this.baseDirectory, table, `${id}.json`));
 	}
 
 	/**
@@ -112,42 +108,7 @@ module.exports = class extends Provider {
 	 * @returns {Promise<Object>}
 	 */
 	getRandom(table) {
-		return this.getAll(table).then(data => data[Math.floor(Math.random() * data.length)]);
-	}
-
-	/**
-	 * Update or insert a new value to all entries.
-	 * @param {string} table The name of the directory
-	 * @param {string} path The key's path to update
-	 * @param {*} newValue The new value for the key
-	 * @param {boolean} [nice=false] Whether the provider should update all entries at the same time or politely update them sequentially
-	 */
-	async updateValue(table, path, newValue, nice = false) {
-		const route = path.split('.');
-		if (nice) {
-			const values = await this.getAll(table, true);
-			for (let i = 0; i < values.length; i++) await this._updateValue(table, route, values[i], newValue);
-		} else {
-			const values = await this.getAll(table);
-			await Promise.all(values.map(object => this._updateValue(table, route, object, newValue)));
-		}
-	}
-
-	/**
-	 * Remove a value or object from all entries.
-	 * @param {string} table The name of the directory
-	 * @param {string} [path=''] The key's path to update
-	 * @param {boolean} nice Whether the provider should update all entries at the same time or politely update them sequentially
-	 */
-	async removeValue(table, path = '', nice = false) {
-		const route = path.split('.');
-		if (nice) {
-			const values = await this.getAll(table, true);
-			for (let i = 0; i < values.length; i++) await this._removeValue(table, route, values[i]);
-		} else {
-			const values = await this.getAll(table);
-			await Promise.all(values.map(object => this._removeValue(table, route, object)));
-		}
+		return this.getKeys(table).then(data => this.get(table, data[Math.floor(Math.random() * data.length)]));
 	}
 
 	/**
@@ -157,16 +118,8 @@ module.exports = class extends Provider {
 	 * @param {Object} data The object with all properties you want to insert into the document
 	 * @returns {Promise<void>}
 	 */
-	create(table, document, data) {
-		return fs.outputJSONAtomic(resolve(this.baseDir, table, `${document}.json`), util.mergeObjects({ id: document }, data));
-	}
-
-	set(...args) {
-		return this.create(...args);
-	}
-
-	insert(...args) {
-		return this.create(...args);
+	create(table, document, data = {}) {
+		return fs.outputJSONAtomic(resolve(this.baseDirectory, table, `${document}.json`), { id: document, ...data });
 	}
 
 	/**
@@ -178,7 +131,7 @@ module.exports = class extends Provider {
 	 */
 	async update(table, document, data) {
 		const existent = await this.get(table, document);
-		return fs.outputJSONAtomic(resolve(this.baseDir, table, `${document}.json`), util.mergeObjects(existent || { id: document }, data));
+		return fs.outputJSONAtomic(resolve(this.baseDirectory, table, `${document}.json`), util.mergeObjects(existent || { id: document }, this.parseUpdateInput(data)));
 	}
 
 	/**
@@ -189,7 +142,7 @@ module.exports = class extends Provider {
 	 * @returns {Promise<void>}
 	 */
 	replace(table, document, data) {
-		return fs.outputJSONAtomic(resolve(this.baseDir, table, `${document}.json`), data);
+		return fs.outputJSONAtomic(resolve(this.baseDirectory, table, `${document}.json`), { id: document, ...this.parseUpdateInput(data) });
 	}
 
 	/**
@@ -199,41 +152,7 @@ module.exports = class extends Provider {
 	 * @returns {Promise<void>}
 	 */
 	delete(table, document) {
-		return fs.unlink(resolve(this.baseDir, table, `${document}.json`));
-	}
-
-	/**
-	 * Update or insert a new value to a specified entry.
-	 * @param {string} table The name of the directory
-	 * @param {string[]} route An array with the path to update
-	 * @param {Object} object The entry to update
-	 * @param {*} newValue The new value for the key
-	 * @returns {Promise<void>}
-	 * @private
-	 */
-	_updateValue(table, route, object, newValue) {
-		let value = object;
-		for (let j = 0; j < route.length - 1; j++) {
-			if (typeof value[route[j]] === 'undefined') value[route[j]] = { [route[j + 1]]: {} };
-			value = value[route[j]];
-		}
-		value[route[route.length - 1]] = newValue;
-		return this.replace(table, object.id, object);
-	}
-
-	/**
-	 * Remove a value from a specified entry.
-	 * @param {string} table The name of the directory
-	 * @param {string[]} route An array with the path to update
-	 * @param {Object} object The entry to update
-	 * @returns {Promise<void>}
-	 * @private
-	 */
-	_removeValue(table, route, object) {
-		let value = object;
-		for (let j = 0; j < route.length - 1; j++) value = value[route[j]] || {};
-		delete value[route[route.length - 1]];
-		return this.replace(table, object.id, object);
+		return fs.unlink(resolve(this.baseDirectory, table, `${document}.json`));
 	}
 
 };

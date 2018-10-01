@@ -1,11 +1,3 @@
-## blacklist
-
-Checks if a user is on blacklist by the clientStorage's userBlacklist key.
-
-**Source:**
-
-[inhibitors/blacklist.js](https://github.com/dirigeants/klasa/blob/master/src/inhibitors/blacklist.js)
-
 ## cooldown
 
 Checks if a user is on cooldown for the command run.
@@ -24,7 +16,7 @@ Checks if the command is globally or locally disabled.
 
 ## missingBotPermissions
 
-Checks to make sure the bot has all permissions needed (based on {@link Command#botPerms}) in the channel to run the command.
+Checks to make sure the bot has all permissions needed (based on {@link Command#requiredPermissions}) in the channel to run the command.
 
 **Source:**
 
@@ -40,19 +32,19 @@ Checks if the command and the channel are both NSFW. Check {@link Command#nsfw} 
 
 ## permissions
 
-Checks if the author/member has permission to use the command. (based on {@link Command#permLevel})
+Checks if the author/member has permission to use the command. (based on {@link Command#permissionLevel})
 
 **Source:**
 
 [inhibitors/permissions.js](https://github.com/dirigeants/klasa/blob/master/src/inhibitors/permissions.js)
 
-## requiredConfigs (requiredSettings pre v0.5.0)
+## requiredSettings (requiredSettings pre v0.5.0)
 
-Checks if the guild has the required configs defined. (based on {@link Command#requiredConfigs})
+Checks if the guild has the required settings defined. (based on {@link Command#requiredSettings})
 
 **Source:**
 
-[inhibitors/requiredConfigs.js](https://github.com/dirigeants/klasa/blob/master/src/inhibitors/requiredConfigs.js)
+[inhibitors/requiredSettings.js](https://github.com/dirigeants/klasa/blob/master/src/inhibitors/requiredSettings.js)
 
 ## runIn
 
@@ -64,6 +56,7 @@ Checks if the command can be run in the channel type this is. (based on {@link C
 
 ## Further Reading:
 
+- {@tutorial IncludedArguments}
 - {@tutorial IncludedCommands}
 - {@tutorial IncludedEvents}
 - {@tutorial IncludedExtendables}
@@ -71,4 +64,5 @@ Checks if the command can be run in the channel type this is. (based on {@link C
 - {@tutorial IncludedLanguages}
 - {@tutorial IncludedMonitors}
 - {@tutorial IncludedProviders}
+- {@tutorial IncludedSerializers}
 - {@tutorial IncludedTasks}

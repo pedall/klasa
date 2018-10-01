@@ -8,6 +8,7 @@ English/United States
 
 ## Further Reading:
 
+- {@tutorial IncludedArguments}
 - {@tutorial IncludedCommands}
 - {@tutorial IncludedEvents}
 - {@tutorial IncludedExtendables}
@@ -15,4 +16,5 @@ English/United States
 - {@tutorial IncludedInhibitors}
 - {@tutorial IncludedMonitors}
 - {@tutorial IncludedProviders}
+- {@tutorial IncludedSerializers}
 - {@tutorial IncludedTasks}

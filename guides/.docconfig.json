@@ -9,21 +9,26 @@
         "path": "UnderstandingPermissionLevels.md"
     },
     {
-        "name": "Understanding SettingGateway",
-        "path": "UnderstandingSettingGateway.md"
+        "name": "Understanding SettingsGateway",
+        "path": "UnderstandingSettingsGateway.md"
     },
     {
         "name": "Understanding Usage Strings",
         "path": "UnderstandingUsageStrings.md"
     },
     {
-        "name": "Understanding Custom Arguments",
-        "path": "UnderstandingCustomArguments.md"
+        "name": "Frequently Asked Questions",
+        "path": "faq.md"
     }]
 },
 {
     "name": "Piece Basics",
-    "files": [{
+    "files": [
+    {
+        "name": "Creating Arguments",
+        "path": "CreatingArguments.md"
+    },
+    {
         "name": "Creating Commands",
         "path": "CreatingCommands.md"
     },
@@ -56,6 +61,14 @@
         "path": "CreatingProviders.md"
     },
     {
+        "name": "Creating Serializers",
+        "path": "CreatingSerializers.md"
+    },
+    {
+        "name": "Creating SQL Providers",
+        "path": "CreatingSQLProviders.md"
+    },
+    {
         "name": "Creating Tasks",
         "path": "CreatingTasks.md"
     }]
@@ -80,7 +93,7 @@
     }]
 },
 {
-    "name": "Advanced SettingGateway",
+    "name": "Advanced SettingsGateway",
     "files": [{
         "name": "Understanding SchemaFolders",
         "path": "UnderstandingSchemaFolders.md"
@@ -90,12 +103,12 @@
         "path": "UnderstandingSchemaPieces.md"
     },
     {
-        "name": "SettingGateway's Types",
-        "path": "SettingGatewayKeyTypes.md"
+        "name": "SettingsGateway's Types",
+        "path": "SettingsGatewayKeyTypes.md"
     },
     {
-        "name": "Updating your Configuration",
-        "path": "SettingGatewayConfigurationUpdate.md"
+        "name": "Updating your Settings",
+        "path": "SettingsGatewaySettingsUpdate.md"
     }]
 },
 {
@@ -111,11 +124,18 @@
     {
         "name": "Rich Menu",
         "path": "RichMenu.md"
+    },
+    {
+        "name": "Plugins",
+        "path": "Plugins.md"
     }]
 },
 {
     "name": "Included Pieces",
     "files": [{
+        "name": "Included Arguments",
+        "path": "IncludedArguments.md"
+    },{
         "name": "Included Commands",
         "path": "IncludedCommands.md"
     },
@@ -148,16 +168,18 @@
         "path": "IncludedProviders.md"
     },
     {
+        "name": "Included Serializers",
+        "path": "IncludedSerializers.md"
+    },
+    {
         "name": "Included Tasks",
         "path": "IncludedTasks.md"
     }]
 },
 {
     "name": "Building Your Bot",
-    "files": [
-        {
-            "name": "Creating a Points System",
-            "path": "CreatingPointsSystems.md"
-        }
-    ]
+    "files": [{
+        "name": "Creating a Points System",
+        "path": "CreatingPointsSystems.md"
+    }]
 }]
